@@ -7,7 +7,9 @@ tags: [spark, delta-lake, lakehouse, pyspark]
 
 ## Summary
 
-The lakehouse paradigm merges data lake flexibility (cheap storage, any format) with warehouse reliability (ACID transactions, schema enforcement). Learn Apache Spark for distributed processing and Delta Lake for reliable lakehouse tables.
+The lakehouse paradigm merges the flexibility of data lakes (cheap storage, any format) with the reliability of data warehouses (ACID transactions, schema enforcement). This week you'll learn Apache Spark for distributed data processing and Delta Lake for building reliable lakehouse tables. You'll understand partitioning strategies, the difference between Parquet and Delta, time travel for data recovery, and how to run Spark SQL analytics on large datasets. The US Flights dataset (millions of rows) is ideal for experiencing Spark's distributed processing power vs. Pandas.
+
+Before Spark, Hadoop MapReduce was the standard for big data but required writing Java and was extremely slow due to disk-based processing. Spark improved on MapReduce by keeping data in memory (10-100x faster) and providing a Python API (PySpark). Before Delta Lake, data lakes had no ACID guarantees -- concurrent writes could corrupt data, there was no schema enforcement, and you couldn't undo mistakes. Parquet improved on CSV by adding columnar storage and compression, but Delta added a transaction log on top for reliability. Before the lakehouse pattern, organizations maintained separate lakes and warehouses, duplicating data and creating consistency nightmares.
 
 ## Key Topics
 

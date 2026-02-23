@@ -9,6 +9,17 @@ tags: [terraform, aws, github-actions, redshift]
 
 ```hcl
 # main.tf
+terraform {
+  required_providers {
+    aws = { source = "hashicorp/aws", version = "~> 5.0" }
+  }
+  backend "s3" {
+    bucket = "my-tf-state"
+    key    = "data-platform/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+
 provider "aws" {
   region = var.aws_region
 }
@@ -32,6 +43,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive" {
       storage_class = "GLACIER"
     }
   }
+}
+
+resource "aws_s3_bucket_versioning" "lakehouse" {
+  bucket = aws_s3_bucket.data_lake.id
+  versioning_configuration { status = "Enabled" }
 }
 
 resource "aws_redshift_cluster" "warehouse" {
@@ -75,6 +91,23 @@ variable "redshift_password" {
 }
 ```
 
+### outputs.tf
+
+```hcl
+# outputs.tf
+output "s3_bucket_name" {
+  value = aws_s3_bucket.data_lake.id
+}
+
+output "redshift_endpoint" {
+  value = aws_redshift_cluster.warehouse.endpoint
+}
+
+output "redshift_s3_role_arn" {
+  value = aws_iam_role.redshift_s3_reader.arn
+}
+```
+
 ## 3. IAM Policy
 
 ```hcl
@@ -107,13 +140,29 @@ resource "aws_iam_role_policy" "s3_read" {
 }
 ```
 
-## 4. Redshift COPY
+## 4. Redshift COPY + Spectrum
 
 ```sql
+-- COPY: bulk load from S3 into Redshift
 COPY analytics.fact_trips
-FROM 's3://taxi-platform-data-lake/gold/trips/'
-IAM_ROLE 'arn:aws:iam::123456789:role/taxi-platform-redshift-s3-role'
+FROM 's3://my-lakehouse/gold/daily_trips/'
+IAM_ROLE 'arn:aws:iam::123456:role/RedshiftS3'
 FORMAT AS PARQUET;
+
+-- Redshift Spectrum: query S3 directly (no COPY needed)
+CREATE EXTERNAL SCHEMA spectrum_lake
+FROM DATA CATALOG
+DATABASE 'lakehouse_db'
+IAM_ROLE 'arn:aws:iam::123456:role/RedshiftSpectrum';
+
+-- Query S3 data as if it were a local table
+SELECT
+    flight_date,
+    COUNT(*) AS flights,
+    AVG(dep_delay) AS avg_delay
+FROM spectrum_lake.silver_flights
+WHERE flight_date >= '2024-01-01'
+GROUP BY 1;
 ```
 
 ## 5. AWS CLI S3 Operations

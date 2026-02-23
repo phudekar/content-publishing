@@ -35,6 +35,67 @@ def produce_event(topic: str, key: str, value: dict):
     producer.flush()
 ```
 
+### Python Client Patterns
+
+```python
+# confluent-kafka producer with delivery report
+from confluent_kafka import Producer
+
+def delivery_report(err, msg):
+    if err:
+        print(f"FAILED: {err}")
+    else:
+        print(f"OK: {msg.topic()}[{msg.partition()}]")
+
+p = Producer({"bootstrap.servers": "localhost:9092"})
+p.produce("topic", value=b"hello",
+           callback=delivery_report)
+p.flush()
+
+# JSON serialization pattern
+import json
+p.produce("topic",
+           key=record["id"].encode(),
+           value=json.dumps(record).encode())
+```
+
+### Consumer Patterns
+
+```python
+# Batch consumer with manual commit
+from confluent_kafka import Consumer
+import json
+
+c = Consumer({
+    "bootstrap.servers": "localhost:9092",
+    "group.id": "etl-pipeline",
+    "auto.offset.reset": "earliest",
+    "enable.auto.commit": False,
+    "max.poll.interval.ms": 300000,
+})
+c.subscribe(["trades"])
+
+BATCH_SIZE = 500
+batch = []
+
+while True:
+    msg = c.poll(1.0)
+    if msg is None:
+        if batch:  # flush remaining
+            write_to_db(batch)
+            c.commit()
+            batch.clear()
+        continue
+    if msg.error():
+        handle_error(msg.error())
+        continue
+    batch.append(json.loads(msg.value()))
+    if len(batch) >= BATCH_SIZE:
+        write_to_db(batch)
+        c.commit()  # commit AFTER successful write
+        batch.clear()
+```
+
 ### Consumer Pattern
 
 ```python
@@ -53,6 +114,44 @@ while True:
     if msg.error(): print(f"Error: {msg.error()}"); continue
     event = json.loads(msg.value())
     process_event(event)
+```
+
+### Kafka Configuration Reference
+
+| Setting | Description |
+|---|---|
+| `acks=all` | Wait for all replicas to acknowledge (strongest durability) |
+| `linger.ms=10` | Wait 10ms to batch messages (throughput vs latency) |
+| `compression.type=snappy` | Compress messages (30-50% size reduction) |
+| `enable.idempotence=true` | Exactly-once producer semantics |
+| `max.poll.records=500` | Max messages per consumer poll() |
+| `session.timeout.ms=45000` | Consumer heartbeat timeout |
+
+### Kafka Docker Compose
+
+```yaml
+# Minimal Kafka + Schema Registry for local dev
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    ports: ["9092:9092"]
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    depends_on: [kafka]
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+    ports: ["8081:8081"]
 ```
 
 ---
@@ -105,6 +204,72 @@ resource "aws_iam_role_policy" "s3_access" {
 }
 ```
 
+### Common Resource Patterns
+
+```hcl
+# Variables with defaults
+variable "env" {
+  type    = string
+  default = "dev"
+}
+
+# Locals for computed values
+locals {
+  prefix = "${var.project}-${var.env}"
+}
+
+# IAM role for Redshift to access S3
+resource "aws_iam_role" "redshift_s3" {
+  name = "${local.prefix}-redshift-s3"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "redshift.amazonaws.com"
+      }
+    }]
+  })
+}
+
+# Output values
+output "bucket_arn" {
+  value = aws_s3_bucket.lakehouse.arn
+}
+```
+
+### Terraform for Data Pipelines
+
+```hcl
+# S3 bucket with lifecycle (move old data to Glacier)
+resource "aws_s3_bucket_lifecycle_configuration" "lake" {
+  bucket = aws_s3_bucket.lakehouse.id
+
+  rule {
+    id     = "archive-old-bronze"
+    status = "Enabled"
+    filter { prefix = "bronze/" }
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+    expiration { days = 365 }
+  }
+}
+
+# Redshift with IAM role attachment
+resource "aws_redshift_cluster" "wh" {
+  cluster_identifier = "${local.prefix}-wh"
+  database_name      = "analytics"
+  node_type          = "dc2.large"
+  number_of_nodes    = 2
+  master_username    = "admin"
+  master_password    = var.redshift_password
+  iam_roles = [aws_iam_role.redshift_s3.arn]
+}
+```
+
 ---
 
 ## Git + GitHub Actions Cheat Sheet
@@ -141,6 +306,61 @@ jobs:
       - run: dbt test --profiles-dir .
 ```
 
+### Git Branching Strategy
+
+```bash
+# Feature branch workflow
+git checkout -b feature/add-kafka-consumer main
+# ... make changes, commit ...
+git push -u origin feature/add-kafka-consumer
+# Create PR, get review, merge
+
+# Release branch workflow
+git checkout -b release/v1.2.0 main
+# Cherry-pick hotfixes:
+git cherry-pick <hotfix-sha>
+git tag v1.2.0
+git push origin v1.2.0
+
+# Useful aliases for .gitconfig
+# [alias]
+#   lg = log --oneline --graph --all
+#   st = status -sb
+#   co = checkout
+#   unstage = reset HEAD --
+```
+
+### GitHub Actions Workflow Patterns
+
+```yaml
+# Reusable workflow (called by other workflows)
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+
+# Matrix builds
+strategy:
+  matrix:
+    python: ["3.11", "3.12"]
+    os: [ubuntu-latest, macos-latest]
+
+# Cache dependencies
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/pip
+    key: ${{ runner.os }}-pip-${{ hashFiles("**/requirements.txt") }}
+
+# Deploy on push to main
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+```
+
 ---
 
 ## Great Expectations Cheat Sheet
@@ -174,6 +394,108 @@ suite.add_expectation(
         column="status", value_set=["pending", "completed", "cancelled"]))
 ```
 
+### Common Expectations
+
+```python
+# Column-level expectations
+expect_column_values_to_not_be_null("id")
+expect_column_values_to_be_unique("id")
+expect_column_values_to_be_between(
+    "price", min_value=0, max_value=10000)
+expect_column_values_to_be_in_set(
+    "status", ["active", "closed", "pending"])
+expect_column_values_to_match_regex(
+    "email", r"^[\w.]+@[\w.]+\.[a-z]{2,}$")
+
+# Table-level expectations
+expect_table_row_count_to_be_between(
+    min_value=1000, max_value=10_000_000)
+expect_table_columns_to_match_ordered_list(
+    ["id", "name", "price", "quantity", "ts"])
+
+# Multi-column expectations
+expect_compound_columns_to_be_unique(
+    ["date", "symbol"])
+expect_column_pair_values_a_to_be_greater_than_b(
+    "end_time", "start_time")
+```
+
+### Checkpoint Configuration
+
+```yaml
+# great_expectations/checkpoints/trades.yml
+name: trades_checkpoint
+config_version: 1.0
+class_name: Checkpoint
+run_name_template: "trades_%Y%m%d"
+validations:
+  - batch_request:
+      datasource_name: warehouse
+      data_asset_name: trades
+    expectation_suite_name: trades_quality
+action_list:
+  - name: store_validation_result
+    action:
+      class_name: StoreValidationResultAction
+  - name: update_data_docs
+    action:
+      class_name: UpdateDataDocsAction
+```
+
+### GX + Pandas Quick Start
+
+```python
+import great_expectations as gx
+import pandas as pd
+
+# Quick validation without project setup
+df = pd.read_parquet("data/trades.parquet")
+
+context = gx.get_context()  # ephemeral context
+ds = context.sources.add_pandas("mem")
+asset = ds.add_dataframe_asset("trades")
+
+batch = asset.build_batch_request(
+    dataframe=df
+)
+validator = context.get_validator(
+    batch_request=batch,
+    expectation_suite_name="quick_check",
+    create_expectation_suite_with_name="quick_check",
+)
+
+# Run expectations interactively
+validator.expect_table_row_count_to_be_between(
+    min_value=100, max_value=1_000_000)
+validator.expect_column_values_to_not_be_null("symbol")
+validator.expect_column_mean_to_be_between(
+    "price", min_value=1, max_value=1000)
+
+# Get results
+results = validator.validate()
+print(f"Success: {results.success}")
+print(f"Failed: {results.statistics['unsuccessful_expectations']}")
+```
+
+### GX Project Structure
+
+```
+great_expectations/
++-- great_expectations.yml      # main config
++-- expectations/
+|   +-- trades_quality.json     # expectation suite
+|   +-- orders_quality.json
++-- checkpoints/
+|   +-- trades_checkpoint.yml   # validation config
++-- plugins/
+|   +-- custom_expectations/
+|       +-- expect_valid_ticker.py
++-- uncommitted/
+    +-- data_docs/              # generated HTML reports
+        +-- local_site/
+            +-- index.html
+```
+
 ### Data Quality Strategy by Layer
 
 | Layer | What to Check | When |
@@ -193,6 +515,27 @@ graph LR
     F -->|Fail| E
     G --> H["Analytics / BI"]
 :::
+
+### Data Quality Strategy by Layer
+
+```python
+# Bronze (raw): minimal checks
+# - Schema matches expected columns
+# - Row count > 0
+# - No completely empty columns
+
+# Silver (cleaned): data validity
+# - Primary keys are unique and not null
+# - Values in expected ranges
+# - Foreign keys exist in dimension tables
+# - Timestamps are in valid ranges
+
+# Gold (aggregated): business logic
+# - Totals match across tables
+# - No negative revenue/quantities
+# - Row counts within expected bounds
+# - Distributions haven't shifted dramatically
+```
 
 ## Resources
 

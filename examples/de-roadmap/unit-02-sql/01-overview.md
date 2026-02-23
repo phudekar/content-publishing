@@ -7,7 +7,13 @@ tags: [sql, postgresql, dimensional-modeling, window-functions]
 
 ## Summary
 
-Move beyond SELECT statements — master window functions (ROW_NUMBER, LAG, LEAD, NTILE), CTEs, EXPLAIN ANALYZE. Second half covers Kimball dimensional modeling: facts vs dimensions, star schemas, SCDs.
+SQL is the lingua franca of data engineering, and this week you'll move well beyond SELECT statements. You'll master window functions (ROW_NUMBER, LAG, LEAD, NTILE), CTEs for readable query composition, and query optimization using EXPLAIN ANALYZE. The second half focuses on dimensional modeling — the Kimball methodology that underpins every modern data warehouse. You'll learn to identify facts (measurable events) vs. dimensions (descriptive context), design star schemas, and handle slowly changing dimensions (SCDs). This is the foundation that makes dbt, Redshift, and Snowflake work effectively.
+
+**Why these techniques matter and what they replaced:**
+
+- **Window functions over correlated subqueries** — Before window functions, solving ranking, running totals, and row-comparison problems required correlated subqueries that executed once per row, making them slow on large datasets and extremely hard to read. Window functions perform these calculations in a single pass over a defined partition, with clear and composable syntax.
+- **CTEs over nested subqueries** — Before CTEs, complex analytical queries were written as deeply nested subqueries — sometimes five or six levels deep — making them nearly impossible to debug or modify. CTEs let you name each logical step, read top-to-bottom, and reuse intermediate results within the same query.
+- **Dimensional modeling (Kimball) over normalized schemas** — Before Kimball's methodology, data warehouses used fully normalized (3NF) schemas designed for transactional systems. These required many joins for even simple analytical queries and performed poorly at warehouse scale. Star schemas denormalize dimensions around a central fact table, enabling fast aggregations with simple, predictable join patterns that analysts and BI tools can work with directly.
 
 ## Key Topics
 

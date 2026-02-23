@@ -87,7 +87,28 @@ select * from daily_agg
 # models/staging/schema.yml
 version: 2
 
+sources:
+  - name: raw
+    schema: public
+    tables:
+      - name: taxi_trips
+        loaded_at_field: tpep_pickup_datetime
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+
 models:
+  - name: stg_taxi_trips
+    columns:
+      - name: pickup_at
+        tests: [not_null]
+      - name: fare_amount
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1000
+
   - name: stg_trips
     description: "Cleaned taxi trip records"
     columns:
@@ -171,6 +192,27 @@ sources:
     tables:
       - name: taxi_trips
       - name: taxi_zones
+```
+
+### Sources with Per-Table Freshness
+
+```yaml
+# models/staging/sources.yml
+version: 2
+
+sources:
+  - name: raw
+    schema: public
+    tables:
+      - name: taxi_trips
+        loaded_at_field: tpep_pickup_datetime
+        freshness:
+          warn_after: {count: 24, period: hour}
+          error_after: {count: 48, period: hour}
+      - name: taxi_zones
+        freshness: null  # static reference data
+
+# Check freshness: dbt source freshness
 ```
 
 Run freshness check:

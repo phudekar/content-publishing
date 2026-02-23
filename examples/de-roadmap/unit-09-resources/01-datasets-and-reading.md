@@ -23,13 +23,46 @@ tags: [datasets, books, learning]
 
 ## Weekly Study Plan Template
 
-| Day | Activity | Hours |
-|-----|----------|-------|
-| Mon-Fri | Hands-on coding & labs | 1.5/day |
-| Mon-Fri | Video lectures / reading | 1.0/day |
-| Saturday | Project work & integration | 3 |
-| Sunday | Reading + reflection + notes | 2 |
+Use this template to structure your 15 hours each week. Adapt it to your schedule, but stick to the ratio: 30% learning, 50% building, 20% reading.
+
+**Monday-Tuesday: Learn (5 hrs)**
+- Watch tutorials / read documentation for the week's core tool
+- Follow along with official quickstart guides
+- Take notes on key concepts and architecture decisions
+
+**Wednesday-Friday: Build (7 hrs)**
+- Set up the tool locally (Docker, pip install, etc.)
+- Implement the week's deliverables step by step
+- Write tests as you build (not after)
+- Commit working code to Git daily
+
+**Weekend: Read + Reflect (3 hrs)**
+- Read the corresponding book chapters (see Recommended Reading)
+- Review and refactor your code from the week
+- Write a brief README for what you built
+- Plan next week's focus areas
+
+## Progress Tracking
+
+| Week | Mon | Tue | Wed | Thu | Fri | Sat | Sun | Done? |
+|------|-----|-----|-----|-----|-----|-----|-----|-------|
+| 1 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| 2 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| 3 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| 4 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| 5 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| 6 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| 7 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+| 8 | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | |
+
+## Tips for Success
+
+- Don't skip Docker week. Every production issue traces back to containers.
+- Write tests from day one. Testing isn't optional in data engineering.
+- Use Git branches for each week's project. Practice the workflow.
+- If stuck for > 30 minutes, check Stack Overflow or official Discord.
+- Focus on understanding WHY, not just HOW. Interview questions test depth.
 
 :::goal
-Build a consistent study habit — 12-15 hours/week for 8 weeks. Prioritize hands-on practice over passive learning.
+Build a consistent study habit — 15 hours/week for 8 weeks. Prioritize hands-on practice over passive learning.
 :::

@@ -63,6 +63,23 @@ airflow connections add taxi_db \
     --conn-schema taxi
 ```
 
+### Airflow Connections
+
+```bash
+# Set via CLI (preferred for automation)
+airflow connections add warehouse \
+    --conn-type postgres \
+    --conn-host postgres \
+    --conn-port 5432 \
+    --conn-login de_user \
+    --conn-password "${PG_PASSWORD}" \
+    --conn-schema warehouse
+
+# Or via environment variable
+export AIRFLOW_CONN_WAREHOUSE=\
+    "postgresql://de_user:pass@postgres:5432/warehouse"
+```
+
 ## 3. Backfill
 
 ```bash
@@ -70,6 +87,12 @@ airflow connections add taxi_db \
 airflow dags backfill taxi_etl_monthly \
     --start-date 2024-01-01 \
     --end-date 2024-03-31 \
+    --reset-dagruns
+
+# Backfill 6 months of taxi data
+airflow dags backfill taxi_etl_monthly \
+    --start-date 2024-01-01 \
+    --end-date 2024-06-30 \
     --reset-dagruns
 ```
 
@@ -95,6 +118,36 @@ def clean_and_deduplicate(**context):
     return output
 ```
 
+### XCom: Inter-Task Communication
+
+```python
+# Push a value (implicit via return)
+def extract(**ctx):
+    path = "/tmp/data_2024_01.parquet"
+    download(path)
+    return path  # auto-pushed to XCom
+
+# Pull a value in another task
+def transform(**ctx):
+    path = ctx["ti"].xcom_pull(task_ids="extract")
+    df = pd.read_parquet(path)
+    # ... transform ...
+
+# Push multiple values with explicit keys
+def extract_multi(**ctx):
+    ctx["ti"].xcom_push(key="row_count", value=10_000)
+    ctx["ti"].xcom_push(key="file_path", value="/tmp/data.parquet")
+
+# Pull specific key
+def load(**ctx):
+    count = ctx["ti"].xcom_pull(
+        task_ids="extract_multi", key="row_count")
+
+# WARNING: XCom is stored in metadata DB
+# Never pass large data (DataFrames, files)
+# Pass file paths or S3 URIs instead
+```
+
 ## 5. Sensors — Wait for External Conditions
 
 ```python
@@ -109,6 +162,28 @@ wait_for_file = FileSensor(
 )
 
 wait_for_file >> download >> transform >> load
+```
+
+### Sensor: Wait for File
+
+```python
+from airflow.sensors.filesystem import FileSensor
+from airflow.operators.python import PythonOperator
+
+wait_for_file = FileSensor(
+    task_id="wait_for_data",
+    filepath="/data/incoming/trades_{{ ds }}.csv",
+    poke_interval=60,      # check every 60 seconds
+    timeout=3600,          # give up after 1 hour
+    mode="reschedule",     # free worker slot between checks
+)
+
+process = PythonOperator(
+    task_id="process_data",
+    python_callable=process_trades,
+)
+
+wait_for_file >> process
 ```
 
 ## 6. Custom Operator
@@ -136,6 +211,33 @@ class UpsertOperator(BaseOperator):
             replace_index="trip_id",
         )
         self.log.info("Upserted %d rows into %s", len(df), self.table)
+```
+
+### Custom Operator: DownloadOperator
+
+```python
+from airflow.models import BaseOperator
+from airflow.utils.context import Context
+import httpx
+from pathlib import Path
+
+class DownloadOperator(BaseOperator):
+    """Download a file from a URL and save locally."""
+
+    template_fields = ("url", "dest_path")
+
+    def __init__(self, url: str, dest_path: str, **kwargs):
+        super().__init__(**kwargs)
+        self.url = url
+        self.dest_path = dest_path
+
+    def execute(self, context: Context):
+        self.log.info(f"Downloading {self.url}")
+        resp = httpx.get(self.url, timeout=120)
+        resp.raise_for_status()
+        Path(self.dest_path).write_bytes(resp.content)
+        self.log.info(f"Saved to {self.dest_path}")
+        return self.dest_path
 ```
 
 ## Resources

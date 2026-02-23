@@ -7,7 +7,13 @@ tags: [airflow, orchestration, etl, dag]
 
 ## Summary
 
-Orchestration turns ad-hoc scripts into reliable data pipelines. Airflow is the industry standard — used at Airbnb, Uber, Spotify. Learn to think in DAGs: decomposing pipelines into tasks with dependencies, retries, and scheduling.
+Orchestration is what turns ad-hoc scripts into reliable data pipelines. Apache Airflow is the industry standard — used at Airbnb, Uber, Spotify, and thousands of companies. This week you'll learn to think in DAGs (Directed Acyclic Graphs): decomposing pipelines into tasks with clear dependencies, retries, and scheduling. You'll understand operators (BashOperator, PythonOperator, PostgresOperator), sensors for event-driven triggers, XCom for inter-task communication, and the critical distinction between orchestrating work vs. doing work inside Airflow. The NYC Taxi dataset is large enough to simulate real-world pipeline challenges.
+
+**Why Airflow matters and what it replaced:**
+
+- **Airflow over cron jobs** — Before Airflow, data pipelines were cron jobs with no dependency management, no retry logic, no UI, and no way to track what ran or failed. If step 3 of a pipeline failed, there was no built-in mechanism to retry just that step, alert the team, or prevent downstream steps from running on bad data. Airflow provides a web UI, dependency graphs, automatic retries with backoff, SLA monitoring, and full execution history.
+- **DAGs over manually ordered scripts** — Before DAGs, engineers manually ordered script execution and hoped the sequence was correct. DAGs make dependencies explicit and declarative — Airflow's scheduler automatically determines execution order, parallelizes independent tasks, and prevents downstream tasks from running when upstream tasks fail.
+- **Airflow vs. modern alternatives** — Dagster is newer and offers strong typing and software-defined assets, but has a smaller ecosystem and fewer production deployments. Prefect is cloud-first with a simpler API, but less battle-tested at scale. Luigi (Airflow's predecessor from Spotify) lacked a web UI, had weaker scheduling, and required more boilerplate. Airflow remains the most widely adopted orchestrator with the largest community, operator library, and managed-service options (MWAA, Cloud Composer, Astronomer).
 
 ## Key Topics
 

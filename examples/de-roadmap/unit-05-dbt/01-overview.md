@@ -7,7 +7,9 @@ tags: [dbt, elt, sql, analytics-engineering]
 
 ## Summary
 
-dbt has revolutionized analytics engineering by bringing software engineering practices to SQL transformations. Write modular SQL models with version control, testing, and documentation built in. Learn the ELT paradigm and build staging, intermediate, and mart layers.
+dbt has revolutionized analytics engineering by bringing software engineering practices to SQL transformations. Instead of writing monolithic stored procedures, you write modular SQL models with version control, testing, and documentation built in. This week you'll learn the ELT paradigm (Extract-Load first, then Transform in the warehouse) and build a full dbt project: staging models that clean raw data, intermediate models for business logic, and mart models optimized for analysts. You'll add schema tests (not_null, unique, relationships), write custom macros with Jinja, and generate a documentation site that makes your data warehouse self-describing.
+
+Before dbt, SQL transformations were stored procedures or scheduled scripts with no version control, no testing, and no documentation. The shift from ETL to ELT happened because cloud warehouses (Redshift, BigQuery, Snowflake) made compute cheap enough to transform in-place. Before dbt's `ref()` function, tracking dependencies between SQL models was manual and error-prone. Before schema tests, data quality issues were discovered by analysts finding wrong numbers in dashboards -- a reactive, costly process that dbt replaces with proactive, automated validation.
 
 ## Key Topics
 

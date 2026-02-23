@@ -7,7 +7,9 @@ tags: [kafka, streaming, great-expectations, data-quality]
 
 ## Summary
 
-Real-time data is everywhere -- clickstreams, IoT, financial transactions. Kafka is the backbone of streaming at LinkedIn, Netflix, and most modern tech companies. Add Great Expectations for automated data quality validation.
+Real-time data is everywhere: user clickstreams, IoT sensors, financial transactions, application logs. Apache Kafka is the backbone of streaming infrastructure at LinkedIn, Netflix, and most modern tech companies. This week you'll learn Kafka's architecture (brokers, topics, partitions, consumer groups) and build a producer/consumer pipeline. Then you'll add Great Expectations for data quality -- automated validation that catches schema drift, null spikes, and distribution anomalies before bad data reaches your warehouse. Data quality is what separates hobby projects from production systems.
+
+Before Kafka, message queues like RabbitMQ handled event-by-event processing but couldn't handle millions of events per second or replay messages. Kafka's log-based architecture solved this by treating messages as an immutable, ordered log that consumers can read at their own pace. Before Great Expectations, data quality was checked manually or with ad-hoc SQL queries after problems were discovered. GX brings the concept of "data unit tests" -- automated, version-controlled expectations that run as part of your pipeline. For comparison, dbt tests handle quality for SQL transforms, but GX works on any data (files, DataFrames, databases) at any stage of the pipeline.
 
 ## Key Topics
 

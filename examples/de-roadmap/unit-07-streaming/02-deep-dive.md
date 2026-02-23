@@ -141,6 +141,30 @@ class ExpectHighPriceGreaterThanLow(ColumnPairMapExpectation):
         return "High price must be >= Low price"
 ```
 
+### Custom Expectation: Valid Ticker
+
+```python
+from great_expectations.expectations.expectation import (
+    ColumnMapExpectation,
+)
+
+class ExpectColumnValuesToBeValidTicker(ColumnMapExpectation):
+    """Expect stock ticker symbols to be 1-5 uppercase letters."""
+
+    map_metric = "column_values.match_regex"
+    success_keys = ("regex",)
+
+    default_kwarg_values = {
+        "regex": r"^[A-Z]{1,5}$",
+        "mostly": 1.0,
+    }
+
+# Usage:
+# suite.add_expectation(
+#     ExpectColumnValuesToBeValidTicker(column="symbol")
+# )
+```
+
 ## 6. GX Checkpoint in Airflow
 
 ```python
@@ -171,6 +195,33 @@ def trade_quality_pipeline():
     load_to_postgres(stats)
 
 trade_quality_pipeline()
+```
+
+### GX in Airflow (PythonOperator Style)
+
+```python
+# Inside an Airflow PythonOperator
+def validate_loaded_data(**ctx):
+    import great_expectations as gx
+    import pandas as pd
+
+    df = pd.read_sql("SELECT * FROM trades", engine)
+    context = gx.get_context()
+    result = context.run_checkpoint(
+        checkpoint_name="trades_checkpoint",
+        batch_request={
+            "runtime_parameters": {"batch_data": df},
+            "batch_identifiers": {"run_id": ctx["run_id"]},
+        },
+    )
+    if not result.success:
+        raise ValueError("Data quality check failed!")
+
+# In DAG: download >> load >> validate >> notify
+validate = PythonOperator(
+    task_id="validate",
+    python_callable=validate_loaded_data,
+)
 ```
 
 ## Resources

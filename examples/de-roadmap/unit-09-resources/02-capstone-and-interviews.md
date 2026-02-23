@@ -54,6 +54,12 @@ Your GitHub repo README should include:
 - Write a query using window functions to find the top 3 per category
 - How do you optimize a slow query in Redshift/PostgreSQL?
 
+### Architecture & Trade-offs
+- ETL vs ELT: when would you choose each approach?
+- Batch vs streaming: what factors drive the decision?
+- When would you use Spark vs a simpler tool like Pandas?
+- How do you decide between managed cloud services and self-hosted?
+
 ### Data Quality & Operations
 - How do you detect and handle schema drift?
 - Describe your approach to data quality in a production pipeline
@@ -65,6 +71,76 @@ Your GitHub repo README should include:
 - **Task**: What was your specific responsibility
 - **Action**: What did you do — be specific about technical choices
 - **Result**: What was the outcome — metrics, improvements, lessons learned
+
+### Sample Answer Framework (STAR)
+
+Situation: "In my portfolio project, I built a real-time
+           stock trading pipeline using Kafka and Spark."
+
+Task:      "I needed to handle 10K events/sec with < 5 min
+           end-to-end latency and zero data loss."
+
+Action:    "I configured Kafka with acks=all and
+           enable.idempotence=true for exactly-once
+           delivery. I used Delta Lake MERGE for upserts
+           and Great Expectations checkpoints to catch
+           schema drift before data reached the warehouse."
+
+Result:    "The pipeline processed 500K events/day with
+           99.9% uptime. Data quality checks caught 3
+           schema changes during development that would
+           have caused silent data corruption."
+
+## Quick Reference: When to Use What
+
+### Data Storage
+
+| Tool | When to Use |
+|------|-------------|
+| PostgreSQL | Structured data < 1TB, strong consistency, ACID, complex queries |
+| S3 / Object Storage | Any size, any format, cheap, immutable files (Parquet, JSON, CSV) |
+| Delta Lake / Iceberg | ACID on object storage, time travel, schema evolution, lakehouse |
+| Redshift / BigQuery | Analytical queries on TB-PB scale, columnar, managed |
+
+### Data Processing
+
+| Tool | When to Use |
+|------|-------------|
+| Pandas | Single machine, < 10GB, prototyping, quick analysis |
+| Apache Spark | Distributed, > 10GB, production ETL, cluster processing |
+| dbt | SQL transforms in warehouse, testing, documentation, lineage |
+| Apache Flink | True streaming (event-at-a-time), low latency, stateful processing |
+
+### Orchestration
+
+| Tool | When to Use |
+|------|-------------|
+| Apache Airflow | Batch scheduling, DAG-based, mature ecosystem, Python-native |
+| Dagster | Asset-oriented, type-safe, great testing, modern alternative |
+| GitHub Actions | CI/CD, lightweight scheduling, code-triggered workflows |
+
+### Streaming
+
+| Tool | When to Use |
+|------|-------------|
+| Apache Kafka | High-throughput message bus, event sourcing, pub/sub at scale |
+| AWS SQS / SNS | Simple queuing, managed, no cluster ops, lower throughput |
+
+### Data Quality
+
+| Tool | When to Use |
+|------|-------------|
+| Great Expectations | Batch validation, expectation suites, data docs, rich ecosystem |
+| dbt tests | SQL-based tests integrated with transform layer |
+
+### Infrastructure
+
+| Tool | When to Use |
+|------|-------------|
+| Docker | Local dev, packaging, reproducible environments |
+| Docker Compose | Multi-container local stacks, dev/test environments |
+| Terraform | Cloud infrastructure as code, reproducible, version-controlled |
+| Kubernetes | Production container orchestration (after mastering Docker) |
 
 ## Resources
 

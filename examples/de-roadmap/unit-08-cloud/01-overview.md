@@ -7,7 +7,9 @@ tags: [aws, terraform, github-actions, ci-cd]
 
 ## Summary
 
-Everything goes to the cloud. AWS dominates the data engineering job market -- learn S3 (lakehouse storage), Redshift (cloud warehouse), IAM (security). Terraform defines infrastructure as code. GitHub Actions automates testing and deployment.
+Everything you've built locally now goes to the cloud. AWS dominates the job market for data engineering, so you'll learn S3 (object storage for your lakehouse), Redshift (cloud data warehouse), and IAM (security). Terraform lets you define all this infrastructure as code -- version-controlled, reviewable, and reproducible. Finally, GitHub Actions automates your pipeline: run dbt tests on every PR, lint SQL, validate schemas, and deploy on merge. This week ties everything together into a production-grade, cloud-native data platform.
+
+Before Terraform, cloud infrastructure was created manually through the AWS console -- unreproducible, undocumented, and impossible to review. Spinning up a new environment meant hours of clicking through web forms. Terraform vs. alternatives: CloudFormation is AWS-only; Pulumi uses general-purpose languages but has a smaller community. Before CI/CD for data, broken SQL and schema changes were discovered in production. GitHub Actions vs. alternatives: Jenkins requires self-hosting; GitLab CI is tightly coupled to GitLab; CircleCI is cloud-only. S3 replaced HDFS as the standard data lake storage because it's infinitely scalable, cheap, and requires zero maintenance.
 
 ## Key Topics
 

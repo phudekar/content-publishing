@@ -7,7 +7,13 @@ tags: [docker, docker-compose, containers, networking]
 
 ## Summary
 
-Containerization is non-negotiable in modern data engineering. Learn Docker from first principles: images, containers, volumes, networks, multi-stage builds. Use Docker Compose to orchestrate a multi-container local data stack.
+Containerization is non-negotiable in modern data engineering. This week you'll learn Docker from first principles: images, containers, volumes, networks, and multi-stage builds. Then you'll use Docker Compose to orchestrate a multi-container local data stack — the same pattern used in production. This is where most learners fall behind because they skip straight to cloud services. Resist that urge. Understanding containers deeply means you can debug deployment issues, optimize images, and work with any orchestration platform (Kubernetes, ECS, etc.) later.
+
+**Why Docker matters and what it replaced:**
+
+- **Containers over virtual machines** — Before Docker, engineers used virtual machines (VMs) to isolate environments. VMs are heavy (GBs vs. MBs for containers), slow to start (minutes vs. seconds), and hard to share or version. Docker solved the "works on my machine" problem by packaging code, dependencies, and OS libraries into lightweight, portable units that run identically everywhere.
+- **Docker Compose over manual scripts** — Before Docker Compose, running a multi-service stack (database, web server, cache, worker) required hand-written shell scripts to start each service in the right order, wire up networking, and manage volumes. Compose declares the entire stack in a single YAML file with built-in dependency ordering, shared networks, and volume management.
+- **Multi-stage builds over bloated images** — Before multi-stage builds, production images included compilers, build tools, and source code that weren't needed at runtime, resulting in large and insecure images. Multi-stage builds separate the build environment from the runtime environment, producing minimal images that contain only what's needed to run the application.
 
 ## Key Topics
 

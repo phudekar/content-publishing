@@ -7,7 +7,14 @@ tags: [python, fastapi, packaging, logging]
 
 ## Summary
 
-This week focuses on leveling up Python beyond scripting into production-grade engineering — proper packaging with pyproject.toml, isolated virtual environments, structured logging (not print statements), and building APIs that ingest data from external sources.
+This week focuses on leveling up your Python beyond scripting into production-grade engineering. You already know Python basics — now you'll learn how professional data engineers structure projects: proper packaging with `pyproject.toml`, isolated virtual environments, structured logging (not print statements), and building APIs that ingest data from external sources. The emphasis is on writing code that is testable, maintainable, and deployable — not just functional.
+
+**Why these tools matter and what they replaced:**
+
+- **pyproject.toml over setup.py** — Before `pyproject.toml`, Python projects used `setup.py`, which was imperative, hard to maintain, and required executing arbitrary code just to read project metadata. `pyproject.toml` is declarative, standardized (PEP 621), and understood by all modern build tools (pip, setuptools, hatch, poetry) without running code.
+- **Structured logging over print()** — Before structured logging, engineers used `print()` statements for debugging. Print output cannot be filtered by severity, searched across services, or routed to monitoring systems like Datadog or CloudWatch. Python's `logging` module with JSON formatters produces machine-readable output that integrates with log aggregation pipelines.
+- **FastAPI over Flask** — Before FastAPI, Flask was the standard Python web framework, but it lacked native async support, had no built-in request/response validation, and required separate libraries for OpenAPI documentation. FastAPI provides async-first design, automatic Pydantic validation, and generated interactive API docs out of the box.
+- **httpx + tenacity over manual retry loops** — Before `httpx` with `tenacity`, engineers wrote manual retry loops with `requests` that were error-prone, lacked exponential backoff, and had no consistent timeout handling. `httpx` adds async support and connection pooling, while `tenacity` provides declarative retry policies with configurable backoff strategies.
 
 ## Key Topics
 
