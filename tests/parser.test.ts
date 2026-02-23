@@ -68,9 +68,11 @@ describe("Custom directives", () => {
     expect(html).toContain("Item A");
   });
 
-  it("renders :::diagram directive", () => {
-    const html = parser.render(":::diagram\nBox A -> Box B\n:::");
+  it("renders :::diagram directive with mermaid block", () => {
+    const html = parser.render(":::diagram\ngraph LR\n    A --> B\n:::");
     expect(html).toContain('class="directive directive-diagram"');
+    expect(html).toContain('class="mermaid"');
+    expect(html).toContain("graph LR");
   });
 
   it("renders :::cheat directive", () => {

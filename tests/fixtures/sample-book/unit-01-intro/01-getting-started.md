@@ -26,9 +26,8 @@ Learn the basics of the publishing framework.
 :::
 
 :::diagram
-┌────────────┐    ┌────────────┐
-│  Markdown  │───▶│    HTML     │
-└────────────┘    └────────────┘
+graph LR
+    A[Markdown] --> B[HTML]
 :::
 
 :::cheat

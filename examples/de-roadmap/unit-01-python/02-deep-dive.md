@@ -52,10 +52,10 @@ def test_process_trade_default_timestamp():
 ## Data Pipeline Pattern
 
 :::diagram
-┌──────────┐    ┌───────────┐    ┌──────────┐    ┌──────────┐
-│  Source   │───▶│ Transform │───▶│ Validate │───▶│   Sink   │
-│ (Kafka)  │    │ (Polars)  │    │  (GX)    │    │(Iceberg) │
-└──────────┘    └───────────┘    └──────────┘    └──────────┘
+graph LR
+    Source["Source (Kafka)"] --> Transform["Transform (Polars)"]
+    Transform --> Validate["Validate (GX)"]
+    Validate --> Sink["Sink (Iceberg)"]
 :::
 
 :::deliverables

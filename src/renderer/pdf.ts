@@ -51,6 +51,21 @@ export class PDFGenerator {
       const browserPage = await browser.newPage();
       await browserPage.goto(`file://${tmpHtml}`, { waitUntil: "networkidle0" });
 
+      // Wait for Mermaid diagrams to render (if any)
+      await browserPage.evaluate(() => {
+        return new Promise<void>((resolve) => {
+          const mermaidEls = document.querySelectorAll(".mermaid");
+          if (mermaidEls.length === 0) return resolve();
+          // Mermaid replaces <pre class="mermaid"> content with SVG; wait for that
+          const check = () => {
+            const hasSvg = Array.from(mermaidEls).every((el) => el.querySelector("svg"));
+            if (hasSvg) resolve();
+            else setTimeout(check, 100);
+          };
+          setTimeout(check, 500);
+        });
+      });
+
       const margins = book.config.pdf.margins;
       await browserPage.pdf({
         path: outputPath,

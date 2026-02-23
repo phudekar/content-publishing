@@ -41,18 +41,28 @@ a { color: #2563eb; }
 .tag { background: #e0e7ff; color: #3730a3; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; }
 
 /* === Code === */
-pre { margin: 1rem 0; border-radius: 8px; overflow-x: auto; }
+pre { margin: 1rem 0; padding: 1rem 1.25rem; border-radius: 8px; overflow-x: auto; }
 code { font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace; font-size: 0.9em; }
 p code, li code { background: #f0f0f0; padding: 0.15em 0.35em; border-radius: 3px; }
 
+/* === Copy Button === */
+.copy-btn { position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(255,255,255,0.15); color: #ccc; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.75rem; cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+pre:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { background: rgba(255,255,255,0.25); color: #fff; }
+
 /* === Directives === */
 .directive { margin: 1.25rem 0; padding: 1rem 1.25rem; border-left: 4px solid; border-radius: 0 8px 8px 0; }
-.directive-label { font-weight: 700; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+.directive-label { font-weight: 700; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.35rem; }
+.directive-label svg { flex-shrink: 0; }
+.directive ul, .directive ol { padding-left: 1.5rem; margin: 0.25rem 0; }
+.directive li { margin: 0.2rem 0; }
 .directive-goal { border-color: #10b981; background: #ecfdf5; }
 .directive-goal .directive-label { color: #059669; }
 .directive-deliverables { border-color: #3b82f6; background: #eff6ff; }
 .directive-deliverables .directive-label { color: #2563eb; }
-.directive-diagram { border-color: #8b5cf6; background: #f5f3ff; font-family: monospace; white-space: pre; }
+.directive-diagram { border-color: #8b5cf6; background: #f5f3ff; }
+.directive-diagram .mermaid { margin: 0.5rem 0; }
+.directive-diagram .mermaid svg { max-width: 100%; height: auto; }
 .directive-diagram .directive-label { color: #7c3aed; }
 .directive-cheat { border-color: #f59e0b; background: #fffbeb; }
 .directive-cheat .directive-label { color: #d97706; }
