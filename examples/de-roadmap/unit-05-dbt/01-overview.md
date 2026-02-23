@@ -42,9 +42,9 @@ Build a complete dbt project that transforms raw data into clean, tested, docume
 
 :::diagram
 graph LR
-    A["Raw Sources"] -->|ref()| B["Staging"]
-    B -->|ref()| C["Intermediate"]
-    C -->|ref()| D["Marts"]
+    A["Raw Sources"] -->|"ref()"| B["Staging"]
+    B -->|"ref()"| C["Intermediate"]
+    C -->|"ref()"| D["Marts"]
     D --> E["Analytics / BI"]
 :::
 
