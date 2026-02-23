@@ -6,12 +6,22 @@ import puppeteer from "puppeteer";
 import { MarkdownParser } from "../parser/markdown.js";
 import type { BookData } from "../config/loader.js";
 
+function findTemplatesDir(): string {
+  let dir = import.meta.dirname;
+  while (dir !== path.dirname(dir)) {
+    const candidate = path.join(dir, "src", "templates");
+    if (fs.existsSync(candidate)) return candidate;
+    dir = path.dirname(dir);
+  }
+  throw new Error("Could not find src/templates directory");
+}
+
 export class PDFGenerator {
   private env: nunjucks.Environment;
   private parser: MarkdownParser;
 
   constructor(templateDir?: string) {
-    const tplDir = templateDir ?? path.join(import.meta.dirname, "..", "templates");
+    const tplDir = templateDir ?? findTemplatesDir();
     this.env = nunjucks.configure(tplDir, { autoescape: false });
     this.parser = new MarkdownParser();
   }
@@ -29,7 +39,7 @@ export class PDFGenerator {
     }
 
     // Load CSS
-    const cssPath = path.join(import.meta.dirname, "..", "templates", "assets", "style.css");
+    const cssPath = path.join(findTemplatesDir(), "assets", "style.css");
     const css = fs.readFileSync(cssPath, "utf-8");
 
     // Render the full PDF HTML

@@ -28,9 +28,13 @@ bun test tests/parser.test.ts
 bun test:watch
 
 # CLI usage (after build)
-bun publisher validate --book-dir ./examples/de-roadmap
-bun publisher build site --book-dir ./examples/de-roadmap -o _site
-bun publisher build pdf --book-dir ./examples/de-roadmap -o output.pdf
+bun ./dist/cli.js validate --book-dir ./examples/de-roadmap
+bun ./dist/cli.js build site --book-dir ./examples/de-roadmap -o _site
+bun ./dist/cli.js build pdf --book-dir ./examples/de-roadmap -o output.pdf
+
+# Example site shortcuts
+bun run example:build    # Build CLI + generate DE roadmap site to _site/
+bun run example:serve    # Build + serve at http://localhost:3000
 ```
 
 No linter/formatter is currently configured.

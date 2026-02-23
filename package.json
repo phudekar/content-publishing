@@ -10,7 +10,9 @@
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "example:build": "bun run build && bun ./dist/cli.js build site --book-dir ./examples/de-roadmap -o _site",
+    "example:serve": "bun run example:build && bunx serve _site -p 3000"
   },
   "files": [
     "dist",

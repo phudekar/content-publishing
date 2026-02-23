@@ -11,7 +11,4 @@ export default defineConfig({
   splitting: true,
   sourcemap: true,
   clean: true,
-  banner: {
-    js: "#!/usr/bin/env node",
-  },
 });

@@ -4,6 +4,17 @@ import nunjucks from "nunjucks";
 import { MarkdownParser } from "../parser/markdown.js";
 import type { BookData, UnitData, PageData } from "../config/loader.js";
 
+function findTemplatesDir(): string {
+  // Works from both src/renderer/ (vitest) and dist/ (built CLI)
+  let dir = import.meta.dirname;
+  while (dir !== path.dirname(dir)) {
+    const candidate = path.join(dir, "src", "templates");
+    if (fs.existsSync(candidate)) return candidate;
+    dir = path.dirname(dir);
+  }
+  throw new Error("Could not find src/templates directory");
+}
+
 interface FlatPage {
   slug: string;
   unitSlug: string;
@@ -25,7 +36,7 @@ export class SiteGenerator {
   private parser: MarkdownParser;
 
   constructor(templateDir?: string) {
-    const tplDir = templateDir ?? path.join(import.meta.dirname, "..", "templates");
+    const tplDir = templateDir ?? findTemplatesDir();
     this.env = nunjucks.configure(tplDir, { autoescape: false });
     this.parser = new MarkdownParser();
   }
@@ -39,7 +50,7 @@ export class SiteGenerator {
     // Copy CSS
     const assetsDir = path.join(outputDir, "assets");
     fs.mkdirSync(assetsDir, { recursive: true });
-    const cssSource = path.join(import.meta.dirname, "..", "templates", "assets", "style.css");
+    const cssSource = path.join(findTemplatesDir(), "assets", "style.css");
     fs.copyFileSync(cssSource, path.join(assetsDir, "style.css"));
 
     // Render index
