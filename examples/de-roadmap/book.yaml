@@ -1,5 +1,5 @@
 title: "Modern Data Engineering Roadmap"
-subtitle: "8-Week Sprint"
+subtitle: "8-Week Engineering Sprint | 12-15 hrs/week"
 author: "Pradip Hudekar"
 pdf:
   pageSize: A4
@@ -14,3 +14,12 @@ site:
   baseUrl: /
 units:
   - unit-01-python
+  - unit-02-sql
+  - unit-03-docker
+  - unit-04-airflow
+  - unit-05-dbt
+  - unit-06-spark
+  - unit-07-streaming
+  - unit-08-cloud
+  - unit-09-resources
+  - unit-10-cookbook

@@ -69,7 +69,7 @@ export function registerDirectives(md: MarkdownIt): void {
           tokens[i].children = null;
           tokens[i].tag = "";
         }
-        return `<div class="directive directive-diagram">\n${directiveLabel("diagram")}\n<pre class="mermaid">${escapeHtml(raw.trim())}</pre>\n`;
+        return `<div class="directive directive-diagram">\n${directiveLabel("diagram")}\n<pre class="mermaid">${raw.trim()}</pre>\n`;
       }
       return "</div>\n";
     },

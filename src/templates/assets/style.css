@@ -60,9 +60,9 @@ pre:hover .copy-btn { opacity: 1; }
 .directive-goal .directive-label { color: #059669; }
 .directive-deliverables { border-color: #3b82f6; background: #eff6ff; }
 .directive-deliverables .directive-label { color: #2563eb; }
-.directive-diagram { border-color: #8b5cf6; background: #f5f3ff; }
-.directive-diagram .mermaid { margin: 0.5rem 0; }
-.directive-diagram .mermaid svg { max-width: 100%; height: auto; }
+.directive-diagram { border-color: #8b5cf6; background: #f5f3ff; overflow-x: auto; }
+.directive-diagram .mermaid { margin: 0.5rem 0; min-width: fit-content; }
+.directive-diagram .mermaid svg { height: auto; min-width: 500px; }
 .directive-diagram .directive-label { color: #7c3aed; }
 .directive-cheat { border-color: #f59e0b; background: #fffbeb; }
 .directive-cheat .directive-label { color: #d97706; }
