@@ -1,0 +1,27 @@
+{% extends "base.njk" %}
+
+{% block title %}{{ unit.config.title }} — {{ book.title }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb">
+  <a href="{{ baseUrl }}">{{ book.title }}</a> &rsaquo;
+  <span>{{ unit.config.title }}</span>
+</nav>
+
+<h1>{{ unit.config.title }}</h1>
+
+<ol class="page-list">
+  {% for page in unit.pages %}
+  <li><a href="{{ baseUrl }}{{ unit.slug }}/{{ page.slug }}.html">{{ page.meta.title }}</a></li>
+  {% endfor %}
+</ol>
+
+<div class="pagination">
+  {% if prevUnit %}
+  <a href="{{ baseUrl }}{{ prevUnit.slug }}/" class="prev">&larr; {{ prevUnit.config.title }}</a>
+  {% endif %}
+  {% if nextUnit %}
+  <a href="{{ baseUrl }}{{ nextUnit.slug }}/" class="next">{{ nextUnit.config.title }} &rarr;</a>
+  {% endif %}
+</div>
+{% endblock %}

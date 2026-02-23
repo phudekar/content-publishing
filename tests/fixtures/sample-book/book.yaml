@@ -1,0 +1,11 @@
+title: "Sample Book"
+subtitle: "A Test Book"
+author: "Test Author"
+pdf:
+  pageSize: A4
+  cover: true
+site:
+  syntaxTheme: github-dark
+  baseUrl: /
+units:
+  - unit-01-intro

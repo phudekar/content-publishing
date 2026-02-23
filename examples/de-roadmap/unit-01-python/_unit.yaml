@@ -1,0 +1,5 @@
+title: "Python for Data Engineering"
+order: 1
+pages:
+  - 01-overview
+  - 02-deep-dive

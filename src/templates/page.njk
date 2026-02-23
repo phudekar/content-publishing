@@ -1,0 +1,32 @@
+{% extends "base.njk" %}
+
+{% block title %}{{ page.meta.title }} — {{ book.title }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb">
+  <a href="{{ baseUrl }}">{{ book.title }}</a> &rsaquo;
+  <a href="{{ baseUrl }}{{ unit.slug }}/">{{ unit.config.title }}</a> &rsaquo;
+  <span>{{ page.meta.title }}</span>
+</nav>
+
+<article class="page-content">
+  {{ content | safe }}
+</article>
+
+{% if page.meta.tags and page.meta.tags.length %}
+<div class="tags">
+  {% for tag in page.meta.tags %}
+  <span class="tag">{{ tag }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="pagination">
+  {% if prevPage %}
+  <a href="{{ baseUrl }}{{ prevPage.unitSlug }}/{{ prevPage.slug }}.html" class="prev">&larr; {{ prevPage.title }}</a>
+  {% endif %}
+  {% if nextPage %}
+  <a href="{{ baseUrl }}{{ nextPage.unitSlug }}/{{ nextPage.slug }}.html" class="next">{{ nextPage.title }} &rarr;</a>
+  {% endif %}
+</div>
+{% endblock %}

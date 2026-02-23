@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ book.title }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ baseUrl }}assets/style.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a href="{{ baseUrl }}" class="site-title">{{ book.title }}</a>
+      {% if book.subtitle %}<span class="site-subtitle">{{ book.subtitle }}</span>{% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      {% if book.author %}<p>&copy; {{ book.author }}</p>{% endif %}
+    </div>
+  </footer>
+</body>
+</html>

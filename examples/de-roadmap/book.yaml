@@ -1,0 +1,16 @@
+title: "Modern Data Engineering Roadmap"
+subtitle: "8-Week Sprint"
+author: "Pradip Hudekar"
+pdf:
+  pageSize: A4
+  cover: true
+  margins:
+    top: 20
+    bottom: 20
+    left: 15
+    right: 15
+site:
+  syntaxTheme: github-dark
+  baseUrl: /
+units:
+  - unit-01-python

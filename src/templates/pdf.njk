@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ book.title }}</title>
+  <style>{{ css | safe }}</style>
+  <style>
+    @page {
+      size: {{ book.pdf.pageSize }};
+      margin: {{ book.pdf.margins.top }}mm {{ book.pdf.margins.right }}mm {{ book.pdf.margins.bottom }}mm {{ book.pdf.margins.left }}mm;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a2e; font-size: 11pt; line-height: 1.5; }
+    .container { max-width: 100%; padding: 0; }
+    .site-header, .site-footer, .pagination, .breadcrumb { display: none; }
+
+    /* Cover */
+    .pdf-cover { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center; page-break-after: always; }
+    .pdf-cover h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .pdf-cover .subtitle { font-size: 1.3rem; color: #666; margin-bottom: 2rem; }
+    .pdf-cover .author { font-size: 1.1rem; color: #888; }
+
+    /* TOC */
+    .pdf-toc { page-break-after: always; }
+    .pdf-toc h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+    .pdf-toc ol { list-style: decimal; padding-left: 1.5rem; }
+    .pdf-toc li { margin: 0.4rem 0; }
+    .pdf-toc .toc-unit { font-weight: 700; margin-top: 0.75rem; }
+    .pdf-toc .toc-page { font-weight: 400; }
+
+    /* Content sections */
+    .pdf-unit-header { page-break-before: always; }
+    .pdf-unit-header h1 { border-bottom: 3px solid #1a1a2e; padding-bottom: 0.5rem; }
+
+    /* Prevent orphaned headings */
+    h1, h2, h3 { page-break-after: avoid; }
+    pre, .directive { page-break-inside: avoid; }
+
+    /* Code blocks */
+    pre { white-space: pre-wrap; word-wrap: break-word; font-size: 9pt; }
+  </style>
+</head>
+<body>
+  {% if book.pdf.cover %}
+  <div class="pdf-cover">
+    <h1>{{ book.title }}</h1>
+    {% if book.subtitle %}<p class="subtitle">{{ book.subtitle }}</p>{% endif %}
+    {% if book.author %}<p class="author">{{ book.author }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="pdf-toc">
+    <h2>Table of Contents</h2>
+    <ol>
+      {% for unit in units %}
+      <li class="toc-unit">{{ unit.config.title }}
+        <ol>
+          {% for page in unit.pages %}
+          <li class="toc-page">{{ page.meta.title }}</li>
+          {% endfor %}
+        </ol>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  {% for unit in units %}
+  <div class="pdf-unit-header">
+    <h1>{{ unit.config.title }}</h1>
+  </div>
+
+  {% for page in unit.pages %}
+  <section class="pdf-page">
+    <h2>{{ page.meta.title }}</h2>
+    {{ renderedPages[unit.slug + "/" + page.slug] | safe }}
+  </section>
+  {% endfor %}
+  {% endfor %}
+</body>
+</html>
