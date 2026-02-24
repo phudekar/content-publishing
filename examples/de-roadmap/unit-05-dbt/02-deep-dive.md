@@ -5,13 +5,22 @@ tags: [dbt, sql, jinja, testing]
 
 # dbt Deep-Dive: Code Examples
 
+:::diagram
+graph TD
+    SRC["Source: raw.taxi_trips"] --> STG["stg_taxi_trips<br/>(view)"]
+    STG --> FCT["fct_daily_trips<br/>(table)"]
+    STG --> INC["fct_trips_incremental<br/>(incremental)"]
+    STG -.->|"tests: not_null, accepted_range"| T["Schema Tests"]
+    FCT -.->|"tests: unique, not_null"| T
+:::
+
 ## 1. dbt_project.yml
 
 ```yaml
 name: taxi_analytics
 version: "1.0.0"
 config-version: 2
-profile: taxi_analytics
+profile: taxi
 
 model-paths: ["models"]
 test-paths: ["tests"]
@@ -25,57 +34,56 @@ models:
       +materialized: view
       +schema: staging
     intermediate:
-      +materialized: view
+      +materialized: ephemeral
     marts:
       +materialized: table
       +schema: analytics
 ```
 
-## 2. Staging Model — stg_trips.sql
+## 2. Staging Model — stg_taxi_trips.sql
 
 ```sql
--- models/staging/stg_trips.sql
+-- models/staging/stg_taxi_trips.sql
 with source as (
     select * from {{ source('raw', 'taxi_trips') }}
 ),
 
 renamed as (
     select
-        trip_id,
-        pickup_datetime,
-        dropoff_datetime,
-        pickup_location_id,
-        dropoff_location_id,
+        tpep_pickup_datetime  as pickup_at,
+        tpep_dropoff_datetime as dropoff_at,
+        pulocationid          as pickup_zone_id,
+        dolocationid          as dropoff_zone_id,
         passenger_count,
         trip_distance,
-        cast(fare_amount as numeric(10,2)) as fare_amount,
-        cast(tip_amount as numeric(10,2))  as tip_amount,
-        payment_type
+        fare_amount,
+        tip_amount,
+        total_amount
     from source
-    where pickup_datetime is not null
+    where tpep_pickup_datetime is not null
 )
 
 select * from renamed
 ```
 
-## 3. Mart Model — fct_daily_revenue.sql
+## 3. Mart Model — fct_daily_trips.sql
 
 ```sql
--- models/marts/fct_daily_revenue.sql
+-- models/marts/fct_daily_trips.sql
 with trips as (
-    select * from {{ ref('stg_trips') }}
+    select * from {{ ref('stg_taxi_trips') }}
 ),
 
 daily_agg as (
     select
-        date_trunc('day', pickup_datetime) as trip_date,
-        pickup_location_id,
-        count(*)                            as total_trips,
-        sum(fare_amount)                    as total_fare,
-        sum(tip_amount)                     as total_tips,
-        avg(trip_distance)                  as avg_distance
+        pickup_zone_id,
+        count(*)                                    as trip_count,
+        avg(fare_amount)                            as avg_fare,
+        avg(trip_distance)                          as avg_distance,
+        sum(tip_amount)                             as total_tips,
+        avg(tip_amount / nullif(fare_amount, 0))    as avg_tip_pct
     from trips
-    group by 1, 2
+    group by 1
 )
 
 select * from daily_agg
@@ -109,25 +117,12 @@ models:
               min_value: 0
               max_value: 1000
 
-  - name: stg_trips
-    description: "Cleaned taxi trip records"
+  - name: fct_daily_trips
     columns:
-      - name: trip_id
+      - name: pickup_zone_id
         tests:
           - unique
           - not_null
-      - name: fare_amount
-        tests:
-          - not_null
-      - name: payment_type
-        tests:
-          - accepted_values:
-              values: [1, 2, 3, 4, 5]
-      - name: pickup_location_id
-        tests:
-          - relationships:
-              to: ref('dim_locations')
-              field: location_id
 ```
 
 ## 5. Jinja Macro — cents_to_dollars
@@ -135,7 +130,7 @@ models:
 ```sql
 -- macros/cents_to_dollars.sql
 {% macro cents_to_dollars(column_name, precision=2) %}
-    round(cast({{ column_name }} as numeric) / 100, {{ precision }})
+    round({{ column_name }} / 100.0, {{ precision }})
 {% endmacro %}
 ```
 
@@ -149,52 +144,40 @@ select
 from {{ ref('stg_raw_payments') }}
 ```
 
-## 6. Incremental Model
+## 6. Incremental Model — fct_trips_incremental.sql
 
 ```sql
--- models/intermediate/int_trips_incremental.sql
+-- models/marts/fct_trips_incremental.sql
 {{
     config(
         materialized='incremental',
-        unique_key='trip_id',
+        unique_key='trip_sk',
         incremental_strategy='merge'
     )
 }}
 
 select
+    {{ dbt_utils.generate_surrogate_key(['trip_id', 'pickup_at']) }} as trip_sk,
     trip_id,
-    pickup_datetime,
+    pickup_at,
     fare_amount,
     current_timestamp as loaded_at
-from {{ ref('stg_trips') }}
+from {{ ref('stg_taxi_trips') }}
 
 {% if is_incremental() %}
-where pickup_datetime > (
-    select max(pickup_datetime) from {{ this }}
+where pickup_at > (
+    select max(pickup_at) from {{ this }}
 )
 {% endif %}
 ```
 
 ## 7. Sources & Freshness
 
-```yaml
-# models/staging/sources.yml
-version: 2
-
-sources:
-  - name: raw
-    database: warehouse
-    schema: raw_data
-    freshness:
-      warn_after: { count: 12, period: hour }
-      error_after: { count: 24, period: hour }
-    loaded_at_field: _loaded_at
-    tables:
-      - name: taxi_trips
-      - name: taxi_zones
-```
-
 ### Sources with Per-Table Freshness
+
+Different tables may have different freshness requirements. Static reference tables
+(like zone lookups) can disable freshness checks entirely, while transactional tables
+need tight SLAs:
 
 ```yaml
 # models/staging/sources.yml

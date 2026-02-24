@@ -8,29 +8,52 @@ tags: [sql, postgresql, window-functions, star-schema]
 ## 1. Window Functions
 
 ```sql
--- Rank drivers by total revenue per month
+-- Top trip per pickup zone by fare (ROW_NUMBER)
 SELECT
-    driver_id,
-    DATE_TRUNC('month', pickup_time) AS month,
-    SUM(fare_amount)                 AS revenue,
-    RANK() OVER (
-        PARTITION BY DATE_TRUNC('month', pickup_time)
-        ORDER BY SUM(fare_amount) DESC
-    ) AS revenue_rank
-FROM trips
-GROUP BY driver_id, DATE_TRUNC('month', pickup_time);
+    pickup_zone_id,
+    trip_id,
+    fare_amount,
+    ROW_NUMBER() OVER (
+        PARTITION BY pickup_zone_id
+        ORDER BY fare_amount DESC
+    ) AS rn
+FROM trips;
 ```
 
 ```sql
--- Compare each trip fare to the previous trip (LAG)
+-- Compare each trip fare to the previous trip by the same driver (LAG)
 SELECT
     trip_id,
-    pickup_time,
+    driver_id,
     fare_amount,
-    LAG(fare_amount) OVER (ORDER BY pickup_time) AS prev_fare,
-    fare_amount - LAG(fare_amount) OVER (ORDER BY pickup_time) AS fare_diff
-FROM trips
-WHERE driver_id = 42;
+    LAG(fare_amount) OVER (
+        PARTITION BY driver_id
+        ORDER BY pickup_at
+    ) AS prev_fare
+FROM trips;
+```
+
+```sql
+-- Running total of fares ordered by pickup time
+SELECT
+    trip_id,
+    pickup_at,
+    fare_amount,
+    SUM(fare_amount) OVER (
+        ORDER BY pickup_at
+        ROWS UNBOUNDED PRECEDING
+    ) AS running_total
+FROM trips;
+```
+
+```sql
+-- Median fare per borough using PERCENTILE_CONT
+SELECT
+    borough,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY fare_amount) AS median_fare
+FROM trips t
+JOIN dim_location l ON t.pickup_zone_id = l.location_key
+GROUP BY borough;
 ```
 
 ## 2. CTEs — Readable Multi-Step Queries
@@ -38,11 +61,11 @@ WHERE driver_id = 42;
 ```sql
 WITH daily_stats AS (
     SELECT
-        DATE(pickup_time) AS trip_date,
-        COUNT(*)           AS trip_count,
-        AVG(fare_amount)   AS avg_fare
+        DATE(pickup_at) AS trip_date,
+        COUNT(*)         AS trip_count,
+        AVG(fare_amount) AS avg_fare
     FROM trips
-    GROUP BY DATE(pickup_time)
+    GROUP BY DATE(pickup_at)
 ),
 ranked_days AS (
     SELECT *,
@@ -69,87 +92,127 @@ CREATE TABLE dim_date (
 );
 
 CREATE TABLE dim_location (
-    location_key SERIAL PRIMARY KEY,
-    zone         VARCHAR(100) NOT NULL,
-    borough      VARCHAR(50)  NOT NULL,
-    latitude     NUMERIC(9,6),
-    longitude    NUMERIC(9,6)
-);
-
-CREATE TABLE dim_payment (
-    payment_key  SERIAL PRIMARY KEY,
-    payment_type VARCHAR(30) NOT NULL,
-    description  VARCHAR(100)
+    location_key  SERIAL PRIMARY KEY,
+    zone          VARCHAR(100) NOT NULL,
+    borough       VARCHAR(50)  NOT NULL,
+    service_zone  VARCHAR(30)
 );
 
 CREATE TABLE fact_trips (
-    trip_id       BIGSERIAL PRIMARY KEY,
-    date_key      INT REFERENCES dim_date(date_key),
-    pickup_loc_key INT REFERENCES dim_location(location_key),
-    dropoff_loc_key INT REFERENCES dim_location(location_key),
-    payment_key   INT REFERENCES dim_payment(payment_key),
-    fare_amount   NUMERIC(10,2) NOT NULL,
-    tip_amount    NUMERIC(10,2) DEFAULT 0,
-    trip_distance NUMERIC(8,2),
-    duration_min  NUMERIC(8,2)
+    trip_sk              BIGSERIAL PRIMARY KEY,
+    date_key             INT REFERENCES dim_date(date_key),
+    pickup_location_key  INT REFERENCES dim_location(location_key),
+    dropoff_location_key INT REFERENCES dim_location(location_key),
+    passenger_count      SMALLINT,
+    trip_distance        NUMERIC(8,2),
+    fare_amount          NUMERIC(10,2) NOT NULL,
+    tip_amount           NUMERIC(10,2) DEFAULT 0,
+    total_amount         NUMERIC(10,2) NOT NULL
 );
 ```
 
 ## 4. EXPLAIN ANALYZE
 
 ```sql
--- Before: sequential scan
+-- Analyze a join query between fact and dimension tables
 EXPLAIN ANALYZE
-SELECT * FROM fact_trips WHERE date_key BETWEEN 20240101 AND 20240131;
+SELECT
+    d.full_date,
+    l.borough,
+    f.fare_amount,
+    f.tip_amount,
+    f.total_amount
+FROM fact_trips f
+JOIN dim_date d ON f.date_key = d.date_key
+JOIN dim_location l ON f.pickup_location_key = l.location_key
+WHERE d.year = 2024 AND d.month = 1
+  AND l.borough = 'Manhattan';
 
--- Add index
+-- Add indexes to improve performance
 CREATE INDEX idx_fact_trips_date ON fact_trips(date_key);
+CREATE INDEX idx_fact_trips_pickup_loc ON fact_trips(pickup_location_key);
 
--- After: index scan (compare execution time)
+-- Re-run after indexing (compare execution time)
 EXPLAIN ANALYZE
-SELECT * FROM fact_trips WHERE date_key BETWEEN 20240101 AND 20240131;
+SELECT
+    d.full_date,
+    l.borough,
+    f.fare_amount,
+    f.tip_amount,
+    f.total_amount
+FROM fact_trips f
+JOIN dim_date d ON f.date_key = d.date_key
+JOIN dim_location l ON f.pickup_location_key = l.location_key
+WHERE d.year = 2024 AND d.month = 1
+  AND l.borough = 'Manhattan';
 ```
 
 ## 5. SCD Type 2
 
 ```sql
-CREATE TABLE dim_driver_scd2 (
-    driver_surrogate SERIAL PRIMARY KEY,
-    driver_id        INT NOT NULL,
-    name             VARCHAR(100),
-    license_class    VARCHAR(10),
-    effective_from   DATE NOT NULL,
-    effective_to     DATE DEFAULT '9999-12-31',
-    is_current       BOOLEAN DEFAULT TRUE
+CREATE TABLE dim_location_scd2 (
+    location_sk    SERIAL PRIMARY KEY,
+    location_id    INT NOT NULL,
+    zone           VARCHAR(100),
+    borough        VARCHAR(50),
+    service_zone   VARCHAR(30),
+    effective_from DATE NOT NULL,
+    effective_to   DATE DEFAULT '9999-12-31',
+    is_current     BOOLEAN DEFAULT TRUE
 );
 
 -- Expire old record and insert new version
-UPDATE dim_driver_scd2
+UPDATE dim_location_scd2
 SET effective_to = CURRENT_DATE - 1, is_current = FALSE
-WHERE driver_id = 101 AND is_current = TRUE;
+WHERE location_id = 42 AND is_current = TRUE;
 
-INSERT INTO dim_driver_scd2 (driver_id, name, license_class, effective_from)
-VALUES (101, 'Jane Smith', 'A+', CURRENT_DATE);
+INSERT INTO dim_location_scd2 (location_id, zone, borough, service_zone, effective_from)
+VALUES (42, 'East Harlem North', 'Manhattan', 'Boro Zone', CURRENT_DATE);
 ```
 
 ## 6. Materialized Views
 
 ```sql
-CREATE MATERIALIZED VIEW mv_monthly_revenue AS
+CREATE MATERIALIZED VIEW mv_daily_borough_stats AS
 SELECT
-    d.year,
-    d.month,
+    d.full_date,
     l.borough,
     COUNT(*)             AS trips,
-    SUM(f.fare_amount)   AS total_revenue,
+    SUM(f.fare_amount)   AS total_fare,
+    SUM(f.tip_amount)    AS total_tip,
     AVG(f.trip_distance) AS avg_distance
 FROM fact_trips f
 JOIN dim_date d ON f.date_key = d.date_key
-JOIN dim_location l ON f.pickup_loc_key = l.location_key
-GROUP BY d.year, d.month, l.borough;
+JOIN dim_location l ON f.pickup_location_key = l.location_key
+GROUP BY d.full_date, l.borough;
 
 -- Refresh after loading new data
-REFRESH MATERIALIZED VIEW CONCURRENTLY mv_monthly_revenue;
+REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_borough_stats;
+```
+
+## 7. JSONB — Semi-Structured Data
+
+```sql
+CREATE TABLE events (
+    id      SERIAL PRIMARY KEY,
+    payload JSONB NOT NULL
+);
+
+-- Query nested fields
+SELECT
+    payload->>'event_type' AS event_type,
+    payload->'metadata'->>'source' AS source,
+    (payload->>'amount')::NUMERIC AS amount
+FROM events
+WHERE payload->>'event_type' = 'trip_completed';
+
+-- Containment operator: find events matching a pattern
+SELECT *
+FROM events
+WHERE payload @> '{"event_type": "trip_completed", "status": "success"}';
+
+-- GIN index for fast JSONB queries
+CREATE INDEX idx_events_payload ON events USING GIN (payload);
 ```
 
 ## Resources
@@ -157,6 +220,7 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY mv_monthly_revenue;
 - [PostgreSQL Window Functions](https://www.postgresql.org/docs/current/tutorial-window.html)
 - [PostgreSQL CTEs](https://www.postgresql.org/docs/current/queries-with.html)
 - [PostgreSQL EXPLAIN](https://www.postgresql.org/docs/current/sql-explain.html)
+- [PostgreSQL JSONB](https://www.postgresql.org/docs/current/datatype-json.html)
 
 :::cheat
 \dt | List tables

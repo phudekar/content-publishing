@@ -6,6 +6,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 /* === Layout === */
 .container { max-width: 860px; margin: 0 auto; padding: 0 1.5rem; }
 
+/* === Page Wrapper with Sidebar === */
+.page-wrapper { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 60px); }
+
+/* === Sidebar === */
+.sidebar { background: #fff; border-right: 1px solid #e0e0e0; padding: 1rem 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.sidebar-nav { padding: 0 0.75rem; }
+.sidebar-unit { margin-bottom: 0.25rem; }
+.sidebar-unit summary { cursor: pointer; list-style: none; padding: 0.4rem 0.75rem; font-size: 0.85rem; font-weight: 600; color: #1a1a2e; border-radius: 4px; transition: background 0.15s; }
+.sidebar-unit summary::-webkit-details-marker { display: none; }
+.sidebar-unit summary::before { content: "\25B6"; font-size: 0.6em; margin-right: 0.5rem; display: inline-block; transition: transform 0.2s; }
+.sidebar-unit[open] summary::before { transform: rotate(90deg); }
+.sidebar-unit summary:hover { background: #f0f0f0; }
+.sidebar-unit-title.active { color: #2563eb; background: #eff6ff; }
+.sidebar-pages { list-style: none; padding: 0 0 0.25rem 1.5rem; }
+.sidebar-pages li { margin: 0; }
+.sidebar-page-link { display: block; padding: 0.25rem 0.75rem; font-size: 0.8rem; color: #555; text-decoration: none; border-radius: 4px; transition: background 0.15s, color 0.15s; }
+.sidebar-page-link:hover { background: #f0f0f0; color: #1a1a2e; }
+.sidebar-page-link.active { background: #e0e7ff; color: #2563eb; font-weight: 600; }
+
+/* === Main Content Area === */
+.main-content { max-width: 860px; padding: 0 1.5rem; }
+
+/* === Sidebar Toggle (mobile) === */
+.sidebar-toggle { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 0.25rem; line-height: 1; }
+
 /* === Header === */
 .site-header { background: #1a1a2e; color: #fff; padding: 1rem 0; }
 .site-header .container { display: flex; align-items: baseline; gap: 1rem; }
@@ -33,8 +58,8 @@ a { color: #2563eb; }
 
 /* === Pagination === */
 .pagination { display: flex; justify-content: space-between; margin: 2rem 0; padding-top: 1rem; border-top: 1px solid #e0e0e0; }
-.pagination .prev::before { content: "← "; }
-.pagination .next::after { content: " →"; }
+.pagination .prev::before { content: "\2190 "; }
+.pagination .next::after { content: " \2192"; }
 
 /* === Tags === */
 .tags { margin: 1.5rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -84,9 +109,10 @@ pre:hover .copy-btn { opacity: 1; }
 
 /* === Print / PDF === */
 @media print {
-  .site-header, .site-footer, .pagination, .breadcrumb { display: none; }
+  .site-header, .site-footer, .pagination, .breadcrumb, .sidebar, .sidebar-toggle { display: none; }
+  .page-wrapper { display: block; }
   body { background: #fff; font-size: 11pt; line-height: 1.5; }
-  .container { max-width: 100%; padding: 0; }
+  .container, .main-content { max-width: 100%; padding: 0; }
   h1 { page-break-before: always; }
   h1:first-of-type { page-break-before: avoid; }
   pre { white-space: pre-wrap; word-wrap: break-word; }
@@ -94,9 +120,17 @@ pre:hover .copy-btn { opacity: 1; }
   a { color: inherit; text-decoration: none; }
 }
 
-/* === Responsive === */
+/* === Mobile Responsive === */
+@media (max-width: 800px) {
+  .sidebar-toggle { display: block; }
+  .page-wrapper { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; top: 0; left: 0; width: 280px; height: 100vh; z-index: 100; transform: translateX(-100%); transition: transform 0.3s ease; border-right: 1px solid #e0e0e0; box-shadow: none; }
+  .sidebar.open { transform: translateX(0); box-shadow: 2px 0 8px rgba(0,0,0,0.15); }
+  .main-content { padding: 0 1rem; }
+}
+
 @media (max-width: 600px) {
   html { font-size: 14px; }
   .container { padding: 0 1rem; }
-  .site-header .container { flex-direction: column; gap: 0.25rem; }
+  .site-header .container { gap: 0.5rem; }
 }

@@ -14,12 +14,13 @@ taxi-ingestion/
 │       ├── __init__.py
 │       ├── app.py            # FastAPI application
 │       ├── config.py          # pydantic-settings config
-│       ├── downloader.py      # httpx download logic
-│       └── logging_setup.py   # Structured logging
+│       ├── ingestion.py       # httpx download logic
+│       ├── logging_config.py  # Structured logging
+│       └── models.py          # Data models
 ├── tests/
 │   ├── conftest.py
 │   ├── test_app.py
-│   └── test_downloader.py
+│   └── test_ingestion.py
 ├── pyproject.toml
 ├── .env
 └── README.md
@@ -40,15 +41,22 @@ dependencies = [
     "tenacity>=8.3",
 ]
 
+[project.scripts]
+taxi-ingest = "taxi_ingestion.app:main"
+
 [project.optional-dependencies]
-dev = ["pytest>=8.1", "pytest-asyncio>=0.23", "ruff>=0.4"]
+dev = ["pytest>=8.1", "pytest-asyncio>=0.23", "pytest-cov>=5.0", "ruff>=0.4"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 99
+target-version = "py311"
 ```
 
-## 3. Structured Logging — JSON Formatter
+## 3. Structured Logging — logging_config.py
 
 ```python
 import logging
@@ -67,65 +75,142 @@ class JsonFormatter(logging.Formatter):
             log_entry["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_entry)
 
-def setup_logging(level: str = "INFO") -> None:
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
-    logging.basicConfig(level=level, handlers=[handler])
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    return logger
 ```
 
-## 4. FastAPI Endpoint — POST /ingest
+## 4. FastAPI Application — app.py
 
 ```python
 from fastapi import FastAPI, BackgroundTasks
+from pydantic import BaseModel, field_validator
 from taxi_ingestion.config import Settings
-from taxi_ingestion.downloader import download_parquet
+from taxi_ingestion.ingestion import download_parquet
+from pathlib import Path
 
 app = FastAPI(title="Taxi Ingestion Service")
 settings = Settings()
 
+class IngestRequest(BaseModel):
+    year: int
+    month: int
+
+    @field_validator("month")
+    @classmethod
+    def month_in_range(cls, v: int) -> int:
+        if not 1 <= v <= 12:
+            raise ValueError("month must be between 1 and 12")
+        return v
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "taxi-ingestion"}
+
 @app.post("/ingest")
-async def ingest(year: int, month: int, bg: BackgroundTasks):
+async def ingest(req: IngestRequest, bg: BackgroundTasks):
     url = (
         f"https://d37ci6vzurychx.cloudfront.net/trip-data/"
-        f"yellow_tripdata_{year}-{month:02d}.parquet"
+        f"yellow_tripdata_{req.year}-{req.month:02d}.parquet"
     )
-    bg.add_task(download_parquet, url, settings.data_dir)
+    dest = Path(settings.data_dir)
+    bg.add_task(download_parquet, url, dest)
     return {"status": "accepted", "url": url}
 ```
 
-## 5. httpx with Retry — Resilient Downloads
+## 5. Data Models — models.py
+
+```python
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class TaxiTrip:
+    vendor_id: int
+    pickup_at: datetime
+    dropoff_at: datetime
+    passenger_count: int
+    distance: float
+    fare: float
+    tip: float
+    total: float
+
+    def to_dict(self) -> dict:
+        return {
+            "vendor_id": self.vendor_id,
+            "pickup_at": self.pickup_at.isoformat(),
+            "dropoff_at": self.dropoff_at.isoformat(),
+            "passenger_count": self.passenger_count,
+            "distance": self.distance,
+            "fare": self.fare,
+            "tip": self.tip,
+            "total": self.total,
+        }
+
+    @property
+    def duration_minutes(self) -> float:
+        return (self.dropoff_at - self.pickup_at).total_seconds() / 60
+```
+
+## 6. Resilient Downloads — ingestion.py
 
 ```python
 import httpx
 from pathlib import Path
-from datetime import datetime, timezone
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
-async def download_parquet(url: str, data_dir: str) -> Path:
-    dest = Path(data_dir) / f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}.parquet"
-    async with httpx.AsyncClient(timeout=120) as client:
-        async with client.stream("GET", url) as resp:
+def download_parquet(url: str, dest: Path) -> Path:
+    filepath = dest / url.split("/")[-1]
+    with httpx.Client(timeout=120) as client:
+        with client.stream("GET", url) as resp:
             resp.raise_for_status()
-            with open(dest, "wb") as f:
-                async for chunk in resp.aiter_bytes(chunk_size=8192):
+            with open(filepath, "wb") as f:
+                for chunk in resp.iter_bytes(chunk_size=8192):
                     f.write(chunk)
-    return dest
+    return filepath
 ```
 
-## 6. Config with pydantic-settings
+## 7. Config with pydantic-settings — config.py
 
 ```python
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="TAXI_")
+    model_config = {"env_prefix": "TAXI_"}
 
     data_dir: str = "./data/raw"
     log_level: str = "INFO"
     api_base_url: str = "https://d37ci6vzurychx.cloudfront.net"
     download_timeout: int = 120
     max_retries: int = 3
+```
+
+## 8. Tests — test_app.py
+
+```python
+from fastapi.testclient import TestClient
+from taxi_ingestion.app import app
+
+client = TestClient(app)
+
+def test_ingest_returns_accepted():
+    resp = client.post("/ingest", json={"year": 2024, "month": 1})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "accepted"
+
+def test_ingest_validates_month():
+    resp = client.post("/ingest", json={"year": 2024, "month": 13})
+    assert resp.status_code == 422
+
+def test_health():
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
 ```
 
 ## Resources

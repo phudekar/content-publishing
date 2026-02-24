@@ -5,28 +5,35 @@ tags: [pyspark, delta-lake, spark-sql, partitioning]
 
 # Spark & Delta Lake Deep-Dive: Code Examples
 
+:::diagram
+graph LR
+    CSV["flights.csv"] --> B["Bronze<br/>(raw, append-only)<br/>Delta"]
+    B --> S["Silver<br/>(clean, dedup)<br/>Delta"]
+    S --> G["Gold<br/>(aggregates)<br/>Delta"]
+    G --> SQL["Spark SQL /<br/>Redshift"]
+:::
+
 ## 1. PySpark Read + Transform
 
 ```python
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, year, month, to_date
+from pyspark.sql.functions import col
 
 spark = SparkSession.builder \
-    .appName("TaxiIngestion") \
+    .appName("FlightIngestion") \
     .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
     .getOrCreate()
 
-df = spark.read.csv("s3://raw-data/taxi_trips.csv", header=True, inferSchema=True)
+df = spark.read.csv("data/raw/flights.csv", header=True, inferSchema=True)
 
 cleaned = df \
-    .filter(col("fare_amount") > 0) \
-    .withColumn("trip_date", to_date("pickup_datetime")) \
-    .withColumn("trip_year", year("pickup_datetime")) \
-    .withColumn("trip_month", month("pickup_datetime"))
+    .withColumn("is_delayed", col("DEP_DELAY") > 15) \
+    .filter(col("CANCELLED") == 0)
 
 cleaned.write \
-    .partitionBy("trip_year", "trip_month") \
-    .parquet("s3://bronze/taxi_trips/")
+    .format("delta") \
+    .mode("overwrite") \
+    .save("data/lakehouse/bronze/flights")
 ```
 
 ## 2. Delta Lake Time Travel
@@ -34,40 +41,42 @@ cleaned.write \
 ```python
 # Write initial Delta table
 cleaned.write.format("delta").mode("overwrite") \
-    .save("s3://silver/taxi_trips/")
+    .save("data/lakehouse/silver/flights")
 
 # Query a previous version by number
 df_v0 = spark.read.format("delta") \
     .option("versionAsOf", 0) \
-    .load("s3://silver/taxi_trips/")
+    .load("data/lakehouse/silver/flights")
 
 # Query by timestamp
 df_hist = spark.read.format("delta") \
     .option("timestampAsOf", "2025-01-15T10:00:00") \
-    .load("s3://silver/taxi_trips/")
+    .load("data/lakehouse/silver/flights")
 
 # View table history
 from delta.tables import DeltaTable
-dt = DeltaTable.forPath(spark, "s3://silver/taxi_trips/")
+dt = DeltaTable.forPath(spark, "data/lakehouse/silver/flights")
 dt.history().show(truncate=False)
 ```
 
 ## 3. Spark SQL Analytics
 
 ```python
-cleaned.createOrReplaceTempView("trips")
+cleaned.createOrReplaceTempView("flights")
 
 spark.sql("""
     SELECT
-        trip_date,
-        COUNT(*)                        AS total_trips,
-        ROUND(AVG(fare_amount), 2)      AS avg_fare,
-        ROUND(SUM(fare_amount), 2)      AS total_revenue,
-        PERCENTILE_APPROX(fare_amount, 0.95) AS p95_fare
-    FROM trips
-    WHERE trip_year = 2024
-    GROUP BY trip_date
-    ORDER BY trip_date
+        CARRIER,
+        ROUND(AVG(DEP_DELAY), 2)               AS avg_dep_delay,
+        COUNT(CASE WHEN DEP_DELAY > 15
+              THEN 1 END)                       AS delayed_flights,
+        COUNT(*)                                AS total_flights,
+        ROUND(COUNT(CASE WHEN DEP_DELAY > 15
+              THEN 1 END) * 100.0
+              / COUNT(*), 2)                    AS delay_pct
+    FROM flights
+    GROUP BY CARRIER
+    ORDER BY avg_dep_delay DESC
 """).show()
 ```
 
@@ -77,15 +86,15 @@ spark.sql("""
 from pyspark.sql.functions import broadcast
 
 # Broadcast join — small dimension table
-zones = spark.read.parquet("s3://dims/taxi_zones/")
-result = cleaned.join(broadcast(zones), "location_id")
+airports = spark.read.parquet("data/dims/airports/")
+result = cleaned.join(broadcast(airports), "ORIGIN")
+
+# Set shuffle partitions for this job
+spark.conf.set("spark.sql.shuffle.partitions", "50")
 
 # Cache frequently-used DataFrame
 cleaned.cache()
 cleaned.count()  # Trigger materialization
-
-# Repartition for balanced parallelism
-balanced = cleaned.repartition(200, "trip_date")
 
 # Enable AQE (Adaptive Query Execution)
 spark.conf.set("spark.sql.adaptive.enabled", "true")
@@ -97,42 +106,49 @@ spark.conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
 ```python
 from delta.tables import DeltaTable
 
-target = DeltaTable.forPath(spark, "s3://silver/taxi_trips/")
-new_data = spark.read.parquet("s3://staging/new_trips/")
+target = DeltaTable.forPath(spark, "data/lakehouse/silver/flights")
+new_data = spark.read.parquet("data/staging/new_flights/")
 
 target.alias("t").merge(
     new_data.alias("s"),
-    "t.trip_id = s.trip_id"
+    "t.flight_id = s.flight_id"
 ).whenMatchedUpdate(set={
-    "fare_amount": "s.fare_amount",
-    "tip_amount": "s.tip_amount",
+    "DEP_DELAY": "s.DEP_DELAY",
+    "ARR_DELAY": "s.ARR_DELAY",
     "updated_at": "current_timestamp()"
 }).whenNotMatchedInsertAll().execute()
+
+# Delta maintenance
+target.optimize().executeCompaction()
+target.vacuum(168)  # Remove files older than 168 hours (7 days)
 ```
 
 ## 6. Medallion Pipeline
 
 ```python
 # Bronze: raw ingestion, append-only
-raw_df = spark.read.json("s3://landing/events/")
+raw_df = spark.read.csv("data/raw/flights.csv", header=True, inferSchema=True)
 raw_df.write.format("delta").mode("append") \
-    .save("s3://bronze/events/")
+    .save("data/lakehouse/bronze/flights")
 
 # Silver: clean and deduplicate
-bronze = spark.read.format("delta").load("s3://bronze/events/")
+bronze = spark.read.format("delta").load("data/lakehouse/bronze/flights")
 silver = bronze \
-    .dropDuplicates(["event_id"]) \
-    .filter(col("event_type").isNotNull()) \
+    .dropDuplicates(["flight_id"]) \
+    .filter(col("CANCELLED") == 0) \
     .withColumn("processed_at", current_timestamp())
 silver.write.format("delta").mode("overwrite") \
-    .save("s3://silver/events/")
+    .save("data/lakehouse/silver/flights")
 
 # Gold: aggregate for analytics
-gold = spark.read.format("delta").load("s3://silver/events/") \
-    .groupBy("event_date", "event_type") \
-    .agg(count("*").alias("event_count"))
+gold = spark.read.format("delta").load("data/lakehouse/silver/flights") \
+    .groupBy("CARRIER", "ORIGIN") \
+    .agg(
+        count("*").alias("flight_count"),
+        avg("DEP_DELAY").alias("avg_delay")
+    )
 gold.write.format("delta").mode("overwrite") \
-    .save("s3://gold/event_summary/")
+    .save("data/lakehouse/gold/flight_summary")
 ```
 
 ## Resources

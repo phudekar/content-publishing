@@ -5,6 +5,28 @@ tags: [terraform, aws, github-actions, redshift]
 
 # Cloud & CI/CD Deep-Dive: Code Examples
 
+:::diagram
+graph TD
+    subgraph "CI/CD"
+        GH["GitHub Actions"]
+    end
+    subgraph "Infrastructure (Terraform)"
+        S3["S3 Data Lake<br/>(lifecycle: IA→Glacier)"]
+        RS["Redshift Cluster<br/>(dc2.large x2)"]
+        IAM["IAM Roles"]
+    end
+    subgraph "Orchestration"
+        AF["Airflow<br/>(MWAA / EC2)"]
+    end
+    GH -->|"deploy DAGs"| AF
+    GH -->|"terraform apply"| S3
+    GH -->|"dbt run"| RS
+    AF -->|"spark-submit"| S3
+    S3 -->|"COPY / Spectrum"| RS
+    IAM -.->|"s3:GetObject"| S3
+    IAM -.->|"assume role"| RS
+:::
+
 ## 1. Terraform S3 + Redshift
 
 ```hcl

@@ -5,38 +5,56 @@ tags: [kafka, python, great-expectations, avro]
 
 # Kafka & Data Quality Deep-Dive: Code Examples
 
+:::diagram
+graph LR
+    P["Producer<br/>(generate_trade)"] -->|"JSON/Avro"| T["Kafka Broker<br/>Topic: trades<br/>3 partitions"]
+    T --> C1["Consumer Group<br/>trade-writer<br/>(batch 500)"]
+    T --> C2["Consumer Group<br/>trade-analytics"]
+    SR["Schema Registry<br/>:8081"] -.->|"Avro schema"| T
+:::
+
 ## 1. Kafka Producer
 
 ```python
 from confluent_kafka import Producer
-import json
+import json, random, time
+from datetime import datetime, timezone
 
 config = {
     "bootstrap.servers": "localhost:9092",
     "client.id": "trade-producer",
     "acks": "all",
     "retries": 3,
+    "linger.ms": 10,
 }
 
 producer = Producer(config)
+
+SYMBOLS = ["AAPL", "GOOG", "MSFT", "AMZN", "TSLA", "META", "NVDA"]
 
 def delivery_report(err, msg):
     if err:
         print(f"Delivery failed: {err}")
 
-trade = {
-    "symbol": "AAPL",
-    "price": 189.50,
-    "quantity": 100,
-    "timestamp": "2025-01-15T10:30:00Z",
-}
+def generate_trade():
+    symbol = random.choice(SYMBOLS)
+    return {
+        "symbol": symbol,
+        "price": round(random.uniform(100, 500), 2),
+        "quantity": random.randint(1, 1000),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
-producer.produce(
-    topic="trades",
-    key="AAPL",
-    value=json.dumps(trade).encode("utf-8"),
-    callback=delivery_report,
-)
+for _ in range(10_000):
+    trade = generate_trade()
+    producer.produce(
+        topic="trades",
+        key=trade["symbol"],
+        value=json.dumps(trade).encode("utf-8"),
+        callback=delivery_report,
+    )
+    producer.poll(0)
+
 producer.flush()
 ```
 
@@ -48,13 +66,15 @@ import json
 
 config = {
     "bootstrap.servers": "localhost:9092",
-    "group.id": "trade-consumer-group",
+    "group.id": "trade-writer",
     "auto.offset.reset": "earliest",
     "enable.auto.commit": False,
 }
 
 consumer = Consumer(config)
 consumer.subscribe(["trades"])
+
+batch = []
 
 try:
     while True:
@@ -64,9 +84,16 @@ try:
         if msg.error():
             print(f"Error: {msg.error()}")
             continue
+
         trade = json.loads(msg.value().decode("utf-8"))
-        print(f"{trade['symbol']}: ${trade['price']}")
-        consumer.commit(asynchronous=False)
+        batch.append(trade)
+
+        if len(batch) >= 500:
+            # Process the batch (e.g., write to database / S3)
+            print(f"Processing batch of {len(batch)} trades")
+            # ... insert into warehouse or write to parquet ...
+            consumer.commit(asynchronous=False)
+            batch = []
 finally:
     consumer.close()
 ```
@@ -82,8 +109,7 @@ finally:
     {"name": "symbol", "type": "string"},
     {"name": "price", "type": "double"},
     {"name": "quantity", "type": "int"},
-    {"name": "timestamp", "type": "string"},
-    {"name": "exchange", "type": ["null", "string"], "default": null}
+    {"name": "timestamp", "type": "long", "logicalType": "timestamp-millis"}
   ]
 }
 ```
@@ -102,23 +128,37 @@ avro_serializer = AvroSerializer(sr_client, schema_str, trade_to_dict)
 import great_expectations as gx
 
 context = gx.get_context()
-datasource = context.sources.add_pandas("trades_ds")
-asset = datasource.add_dataframe_asset("trades_df")
 
-batch_request = asset.build_batch_request(dataframe=trades_df)
+# Define expectation suite
+suite = context.add_or_update_expectation_suite("trades_suite")
 
-expectations = context.add_or_update_expectation_suite("trades_suite")
-validator = context.get_validator(
-    batch_request=batch_request,
-    expectation_suite_name="trades_suite",
+# Add expectations to the suite
+suite.add_expectation(
+    gx.expectations.ExpectColumnToExist(column="symbol")
+)
+suite.add_expectation(
+    gx.expectations.ExpectColumnValuesToNotBeNull(column="price")
+)
+suite.add_expectation(
+    gx.expectations.ExpectColumnValuesToBeBetween(
+        column="price", min_value=0, max_value=100000
+    )
+)
+suite.add_expectation(
+    gx.expectations.ExpectColumnValuesToNotBeNull(column="quantity")
 )
 
-validator.expect_column_to_exist("symbol")
-validator.expect_column_values_to_not_be_null("price")
-validator.expect_column_values_to_be_between("price", min_value=0, max_value=100000)
-validator.expect_column_values_to_not_be_null("quantity")
-validator.expect_column_values_to_be_in_set("exchange", ["NYSE", "NASDAQ", "LSE"])
-validator.save_expectation_suite(discard_failed_expectations=False)
+# Create and run checkpoint
+checkpoint = context.add_or_update_checkpoint(
+    name="trades_checkpoint",
+    validations=[{
+        "batch_request": batch_request,
+        "expectation_suite_name": "trades_suite",
+    }],
+)
+
+result = checkpoint.run()
+print(f"Validation passed: {result.success}")
 ```
 
 ## 5. Custom Expectation

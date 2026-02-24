@@ -57,6 +57,8 @@ export class SiteGenerator {
     const indexHtml = this.env.render("index.njk", {
       book: book.config,
       units: book.units,
+      currentUnitSlug: null,
+      currentPageSlug: null,
       baseUrl,
     });
     fs.writeFileSync(path.join(outputDir, "index.html"), indexHtml);
@@ -72,6 +74,9 @@ export class SiteGenerator {
       const unitHtml = this.env.render("unit.njk", {
         book: book.config,
         unit,
+        units: book.units,
+        currentUnitSlug: unit.slug,
+        currentPageSlug: null,
         baseUrl,
         prevUnit: ui > 0 ? book.units[ui - 1] : null,
         nextUnit: ui < book.units.length - 1 ? book.units[ui + 1] : null,
@@ -93,6 +98,9 @@ export class SiteGenerator {
           book: book.config,
           unit,
           page,
+          units: book.units,
+          currentUnitSlug: unit.slug,
+          currentPageSlug: page.slug,
           content: html,
           baseUrl,
           prevPage,

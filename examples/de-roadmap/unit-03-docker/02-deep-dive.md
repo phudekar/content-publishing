@@ -16,14 +16,16 @@ RUN pip install --no-cache-dir --prefix=/install .
 
 # Stage 2: Runtime image
 FROM python:3.11-slim AS runtime
+RUN useradd -m appuser
 COPY --from=builder /install /usr/local
 WORKDIR /app
 COPY src/ ./src/
+USER appuser
 EXPOSE 8000
 CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-## 2. Docker Compose Stack
+## 2. Docker Compose — Ingestion Stack
 
 ```yaml
 version: "3.8"
@@ -32,41 +34,19 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
+      POSTGRES_USER: taxi
+      POSTGRES_PASSWORD: taxi
+      POSTGRES_DB: taxi
     volumes:
       - pg-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      test: ["CMD-SHELL", "pg_isready -U taxi"]
       interval: 10s
+      timeout: 3s
       retries: 5
-
-  airflow-webserver:
-    build: .
-    command: airflow webserver
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      retries: 3
-
-  airflow-scheduler:
-    build: .
-    command: airflow scheduler
-    depends_on:
-      airflow-webserver:
-        condition: service_healthy
-    environment:
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      start_period: 10s
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -79,19 +59,51 @@ services:
       postgres:
         condition: service_healthy
 
+  ingestion:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      TAXI_DATA_DIR: /data/raw
+      TAXI_DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
 volumes:
   pg-data:
 
 networks:
   default:
     name: data-stack
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 ```
 
-## 3. Health Checks
+## 3. .dockerignore
+
+```
+.git
+__pycache__
+.env
+*.pyc
+.venv
+data/
+```
+
+## 4. Health Checks
 
 ```dockerfile
-# Dockerfile health check
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+# Dockerfile HEALTHCHECK instruction
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 ```
 
@@ -102,28 +114,32 @@ async def health():
     return {"status": "ok", "service": "taxi-ingestion"}
 ```
 
-## 4. Docker Networking
+## 5. Docker Networking
 
 ```yaml
-# Custom networks for service isolation
+# Custom network with IPAM config for deterministic addressing
 networks:
-  frontend:
-    driver: bridge
-  backend:
-    driver: bridge
-
-services:
-  api:
-    networks: [frontend, backend]
-  postgres:
-    networks: [backend]      # Not reachable from frontend
-  nginx:
-    networks: [frontend]
-    ports:
-      - "80:80"              # Only nginx is exposed
+  default:
+    name: data-stack
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 ```
 
-## 5. Volume Management
+:::diagram
+graph TD
+    subgraph "Docker Network: data-stack (172.20.0.0/16)"
+        PG["postgres:16-alpine<br/>:5432"]
+        PGA["pgadmin4<br/>:5050"]
+        APP["ingestion:latest<br/>:8000"]
+    end
+    PGA -->|"postgres://taxi@postgres"| PG
+    APP -->|"postgres://taxi@postgres"| PG
+    VOL[("pg-data volume")] --- PG
+:::
+
+## 6. Volume Management
 
 ```yaml
 volumes:
@@ -141,6 +157,11 @@ services:
 # Inspect and manage volumes
 docker volume ls
 docker volume inspect pg-data
+
+# Backup a named volume
+docker run --rm -v pg-data:/data -v $(pwd):/backup busybox tar czf /backup/pg-backup.tar.gz /data
+
+# Remove volume
 docker volume rm pg-data
 ```
 

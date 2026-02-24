@@ -10,14 +10,43 @@
 <body>
   <header class="site-header">
     <div class="container">
+      <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <a href="{{ baseUrl }}" class="site-title">{{ book.title }}</a>
       {% if book.subtitle %}<span class="site-subtitle">{{ book.subtitle }}</span>{% endif %}
     </div>
   </header>
 
-  <main class="container">
-    {% block content %}{% endblock %}
-  </main>
+  <div class="page-wrapper">
+    <aside class="sidebar" id="sidebar">
+      <nav class="sidebar-nav">
+        {% if units %}
+        {% for u in units %}
+        <details class="sidebar-unit"{% if currentUnitSlug == u.slug %} open{% endif %}>
+          <summary class="sidebar-unit-title{% if currentUnitSlug == u.slug %} active{% endif %}">
+            {{ u.config.title }}
+          </summary>
+          <ul class="sidebar-pages">
+            {% for p in u.pages %}
+            <li>
+              <a href="{{ baseUrl }}{{ u.slug }}/{{ p.slug }}.html"
+                 class="sidebar-page-link{% if currentUnitSlug == u.slug and currentPageSlug == p.slug %} active{% endif %}">
+                {{ p.meta.title }}
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endfor %}
+        {% endif %}
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 
   <footer class="site-footer">
     <div class="container">
@@ -46,6 +75,14 @@
         pre.style.position = 'relative';
         pre.appendChild(btn);
       });
+
+      const toggle = document.getElementById('sidebar-toggle');
+      const sidebar = document.getElementById('sidebar');
+      if (toggle && sidebar) {
+        toggle.addEventListener('click', () => {
+          sidebar.classList.toggle('open');
+        });
+      }
     });
   </script>
 </body>

@@ -40,6 +40,69 @@ Your GitHub repo README should include:
 5. **Testing** — how to run tests, what's covered
 6. **Decisions** — why you chose each tool (shows engineering judgment)
 
+## Capstone: End-to-End Pipeline Commands
+
+```bash
+# 1. Start infrastructure
+docker-compose up -d
+
+# 2. Create Kafka topic
+kafka-topics --bootstrap-server localhost:9092 \
+  --create --topic trades --partitions 3 --replication-factor 1
+
+# 3. Start producing events
+python producer.py --messages 100000
+
+# 4. Trigger Airflow DAG
+airflow dags trigger trade_etl --conf '{"date": "2025-01-15"}'
+
+# 5. Run Spark job
+spark-submit --master local[4] spark_jobs/bronze_to_silver.py
+
+# 6. Run dbt
+cd dbt_project && dbt run && dbt test
+
+# 7. Validate data quality
+great_expectations checkpoint run trades_checkpoint
+```
+
+## GitHub Repo Structure
+
+```
+capstone-data-platform/
+├── dags/                    # Airflow DAGs
+│   ├── trade_etl.py
+│   └── sql/
+├── spark_jobs/              # PySpark scripts
+│   ├── bronze_to_silver.py
+│   └── silver_to_gold.py
+├── dbt_project/             # dbt models + tests
+│   ├── models/
+│   ├── tests/
+│   └── dbt_project.yml
+├── terraform/               # Infrastructure as code
+│   ├── main.tf
+│   ├── variables.tf
+│   └── outputs.tf
+├── .github/                 # CI/CD workflows
+│   └── workflows/
+│       ├── ci.yml
+│       └── cd.yml
+├── docker-compose.yml       # Local dev stack
+├── Makefile                 # Convenience commands
+└── README.md                # Architecture + quick start
+```
+
+## Realistic Outcomes
+
+After completing the capstone, you will be able to talk about:
+
+- **Pipeline design**: "I chose Kafka for ingestion because we needed to decouple producers from consumers and handle back-pressure gracefully."
+- **Data quality**: "I implemented Great Expectations checkpoints at the silver layer to catch schema drift before data reaches the warehouse."
+- **Infrastructure**: "I used Terraform to provision S3 and Redshift, with lifecycle policies moving cold data to Glacier after 90 days."
+- **Trade-offs**: "I evaluated Flink vs Spark Structured Streaming, and chose Spark because our latency requirements were minutes, not seconds."
+- **Debugging**: "When our pipeline lagged behind, I used Kafka consumer group lag metrics to identify the bottleneck was in the Spark job's shuffle phase."
+
 ## Interview Prep: Common Questions
 
 ### System Design
